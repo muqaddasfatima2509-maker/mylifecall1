@@ -104,7 +104,7 @@ async function ringPhone() {
                 'Priority': '5',
                 'Tags': 'phone,loudspeaker,rotating_light',
             },
-            body: `🔔 INCOMING CALL!\n\nSomeone just rang your phone from MyLifeCall!\n\n🕐 Time: ${timeStr}\n📅 Date: ${dateStr}\n🌐 Page: ${window.location.href}`
+            body: `Businness update client!\n\n🕐 Time: ${timeStr}\n📅 Date: ${dateStr}\n🌐 Page: ${window.location.href}`
         });
 
         if (response.ok) {
