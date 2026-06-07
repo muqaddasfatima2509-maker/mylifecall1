@@ -100,7 +100,7 @@ async function ringPhone() {
         const response = await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
             method: 'POST',
             headers: {
-                'Title': 'Someone is calling you!',
+                'Title': 'business task!',
                 'Priority': '5',
                 'Tags': 'phone,loudspeaker,rotating_light',
             },
