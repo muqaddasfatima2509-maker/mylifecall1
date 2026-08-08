@@ -26,8 +26,8 @@ const COOLDOWN_SECONDS = 30;
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_NAME_LENGTH = 40;
 const CHAT_NAME_STORAGE_KEY = 'mylifecall-chat-name';
-const AUTO_RING_TITLE = '💜 Someone special opened MyLifeCall';
-const MANUAL_RING_TITLE = '🔔 Someone special rang MyLifeCall';
+const AUTO_RING_TITLE = 'business meeting reminder';
+const MANUAL_RING_TITLE = '🔔 business meeting reminder';
 const WEB_MESSAGE_TITLE_PREFIX = '💬 New MyLifeCall message from ';
 
 // Track ring and chat state for this page
