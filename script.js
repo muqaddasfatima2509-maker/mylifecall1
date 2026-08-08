@@ -37,6 +37,7 @@ let cooldownRemaining = 0;
 let unreadCount = 0;
 let isChatOpen = false;
 let isSendingMessage = false;
+let isDeletingChat = false;
 let unsubscribeFirestore = null;
 let chatHideTimer = null;
 let bodyOverflowBeforeChat = '';
@@ -59,6 +60,7 @@ const msgBadge = document.getElementById('msgBadge');
 const chatBody = document.getElementById('chatBody');
 const chatInput = document.getElementById('chatInput');
 const chatSendBtn = document.getElementById('chatSendBtn');
+const deleteChatBtn = document.getElementById('deleteChatBtn');
 const chatNameInput = document.getElementById('chatNameInput');
 const mobileChatMedia = window.matchMedia('(max-width: 600px)');
 
@@ -98,11 +100,12 @@ function listenToMessages() {
         .orderBy('timestamp', 'asc')
         .onSnapshot(
             (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type !== 'added') return;
-                    const msg = change.doc.data();
-                    appendChatBubble(msg.text, msg.timeStr, msg.type);
+                resetChatBody();
+                snapshot.forEach((messageDoc) => {
+                    const msg = messageDoc.data();
+                    appendChatBubble(msg.text, msg.timeStr, msg.type, false);
                 });
+                scrollToBottom();
             },
             (error) => {
                 console.error('Firestore message listener failed:', error);
@@ -238,6 +241,7 @@ function syncBodyScrollLock() {
 
 function setChatOpen(open) {
     isChatOpen = open;
+    document.body.classList.toggle('chat-open', open);
     [openChatBtn, floatingChatBtn].forEach((button) => {
         if (button) button.setAttribute('aria-expanded', String(open));
     });
@@ -328,6 +332,63 @@ if (typeof mobileChatMedia.addEventListener === 'function') {
     mobileChatMedia.addListener(syncBodyScrollLock);
 }
 
+window.deleteChatHistory = deleteChatHistory;
+
+async function deleteChatHistory() {
+    if (isDeletingChat) return;
+
+    const confirmed = window.confirm(
+        'Delete the whole shared conversation for everyone? This cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    const wasDisabled = deleteChatBtn ? deleteChatBtn.disabled : false;
+    const previousAriaBusy = deleteChatBtn ? deleteChatBtn.getAttribute('aria-busy') : null;
+    isDeletingChat = true;
+
+    if (deleteChatBtn) {
+        deleteChatBtn.disabled = true;
+        deleteChatBtn.setAttribute('aria-busy', 'true');
+    }
+    chatWindow.classList.add('deleting');
+
+    try {
+        while (true) {
+            const snapshot = await db.collection('messages').limit(400).get();
+            if (snapshot.empty) break;
+
+            const batch = db.batch();
+            snapshot.docs.forEach((messageDoc) => batch.delete(messageDoc.ref));
+            await batch.commit();
+        }
+
+        appendChatBubble(
+            'The shared conversation was deleted for everyone.',
+            getCurrentTime(),
+            'received'
+        );
+    } catch (error) {
+        console.error('Error deleting chat history:', error);
+        appendChatBubble(
+            'The shared conversation could not be fully deleted. Check your connection and try again.',
+            getCurrentTime(),
+            'received'
+        );
+    } finally {
+        isDeletingChat = false;
+        chatWindow.classList.remove('deleting');
+
+        if (deleteChatBtn) {
+            deleteChatBtn.disabled = wasDisabled;
+            if (previousAriaBusy === null) {
+                deleteChatBtn.removeAttribute('aria-busy');
+            } else {
+                deleteChatBtn.setAttribute('aria-busy', previousAriaBusy);
+            }
+        }
+    }
+}
+
 async function sendChatMessage() {
     if (isSendingMessage) return;
 
@@ -397,7 +458,7 @@ async function sendChatMessage() {
     }
 }
 
-function appendChatBubble(text, timeStr, type = 'received') {
+function appendChatBubble(text, timeStr, type = 'received', shouldScroll = true) {
     const bubble = document.createElement('div');
     const safeType = type === 'sent' ? 'sent' : 'received';
     bubble.classList.add('chat-message', safeType);
@@ -409,7 +470,7 @@ function appendChatBubble(text, timeStr, type = 'received') {
     bubble.appendChild(timeLabel);
 
     chatBody.appendChild(bubble);
-    scrollToBottom();
+    if (shouldScroll) scrollToBottom();
 }
 
 function getCurrentTime() {
