@@ -21,13 +21,27 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Cooldown duration in seconds (30 seconds)
+// Timing, input, storage, and notification constants
 const COOLDOWN_SECONDS = 30;
+const MAX_MESSAGE_LENGTH = 500;
+const MAX_NAME_LENGTH = 40;
+const CHAT_NAME_STORAGE_KEY = 'mylifecall-chat-name';
+const AUTO_RING_TITLE = '💜 Someone special opened MyLifeCall';
+const MANUAL_RING_TITLE = '🔔 Someone special rang MyLifeCall';
+const WEB_MESSAGE_TITLE_PREFIX = '💬 New MyLifeCall message from ';
 
-// Track ring count for this session
+// Track ring and chat state for this page
 let ringCount = 0;
 let cooldownInterval = null;
 let cooldownRemaining = 0;
+let unreadCount = 0;
+let isChatOpen = false;
+let isSendingMessage = false;
+let unsubscribeFirestore = null;
+let chatHideTimer = null;
+let bodyOverflowBeforeChat = '';
+let isBodyScrollLocked = false;
+const seenNtfyEventIds = new Set();
 
 // DOM elements
 const ringButton = document.getElementById('ringButton');
@@ -38,7 +52,7 @@ const cooldownBar = document.getElementById('cooldownBar');
 const cooldownProgress = document.getElementById('cooldownProgress');
 const cooldownText = document.getElementById('cooldownText');
 const ringCountEl = document.getElementById('ringCount');
-// Chat UI Elements
+const openChatBtn = document.getElementById('openChatBtn');
 const chatWindow = document.getElementById('chatWindow');
 const floatingChatBtn = document.getElementById('floatingChatBtn');
 const msgBadge = document.getElementById('msgBadge');
@@ -46,120 +60,160 @@ const chatBody = document.getElementById('chatBody');
 const chatInput = document.getElementById('chatInput');
 const chatSendBtn = document.getElementById('chatSendBtn');
 const chatNameInput = document.getElementById('chatNameInput');
+const mobileChatMedia = window.matchMedia('(max-width: 600px)');
 
-// State for messages
-let unreadCount = 0;
-let isChatOpen = false;
-let unsubscribeFirestore = null;
+// Initialize accessibility, limits, and persisted optional name.
+msgBadge.hidden = true;
+chatInput.maxLength = MAX_MESSAGE_LENGTH;
+chatNameInput.maxLength = MAX_NAME_LENGTH;
+chatWindow.setAttribute('aria-hidden', 'true');
+[openChatBtn, floatingChatBtn].forEach((button) => {
+    if (!button) return;
+    button.setAttribute('aria-controls', 'chatWindow');
+    button.setAttribute('aria-expanded', 'false');
+});
 
-// Start listening immediately (Global Chat)
+try {
+    const savedName = localStorage.getItem(CHAT_NAME_STORAGE_KEY);
+    if (savedName) chatNameInput.value = savedName.slice(0, MAX_NAME_LENGTH);
+} catch (error) {
+    console.warn('Could not restore the saved chat name:', error);
+}
+
+updateSendButton();
 listenToMessages();
+setupMessageListener();
+
+function resetChatBody() {
+    const dateDivider = chatBody.querySelector('.chat-date-divider');
+    chatBody.replaceChildren();
+    if (dateDivider) chatBody.appendChild(dateDivider);
+}
 
 function listenToMessages() {
-    if (unsubscribeFirestore) unsubscribeFirestore(); // clear previous listener if any
-    
-    // Clear chat UI before loading
-    const dateDivider = chatBody.querySelector('.chat-date-divider');
-    chatBody.innerHTML = '';
-    if (dateDivider) chatBody.appendChild(dateDivider);
+    if (unsubscribeFirestore) unsubscribeFirestore();
+    resetChatBody();
 
     unsubscribeFirestore = db.collection('messages')
         .orderBy('timestamp', 'asc')
-        .onSnapshot((snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added') {
+        .onSnapshot(
+            (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type !== 'added') return;
                     const msg = change.doc.data();
-                    appendChatBubble(msg.text, msg.timeStr, msg.type, false);
-                }
-            });
-        });
+                    appendChatBubble(msg.text, msg.timeStr, msg.type);
+                });
+            },
+            (error) => {
+                console.error('Firestore message listener failed:', error);
+                appendChatBubble(
+                    'Chat history could not be loaded. Please check your connection and refresh.',
+                    getCurrentTime(),
+                    'received'
+                );
+            }
+        );
 }
 
-// Auto-ring on first visit (page load)
-window.addEventListener('DOMContentLoaded', () => {
-    // Small delay so user sees the page first
-    setTimeout(() => {
-        ringPhone();
-    }, 1500);
-});
+function scheduleAutoRing() {
+    window.setTimeout(() => ringPhone({ automatic: true }), 1500);
+}
 
-async function ringPhone() {
-    if (ringButton.disabled) return;
+// Always send the automatic priority-5 page-open ring shortly after page load.
+if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', scheduleAutoRing, { once: true });
+} else {
+    scheduleAutoRing();
+}
 
-    // Disable button
-    ringButton.disabled = true;
-    buttonText.textContent = 'Ringing...';
-    statusIcon.className = 'status-icon ringing';
-    statusText.textContent = '📞 Ringing your phone now...';
+async function ringPhone(options = {}) {
+    const automatic = Boolean(options && options.automatic);
+    if (!automatic && ringButton.disabled) return;
+
+    // If a manual ring is already running, the required auto-ring is sent quietly.
+    const controlsRingUi = !ringButton.disabled;
+    if (controlsRingUi) {
+        ringButton.disabled = true;
+        buttonText.textContent = 'Ringing...';
+        statusIcon.className = 'status-icon ringing';
+        statusText.textContent = '📞 Ringing your phone now...';
+    }
 
     try {
         const now = new Date();
         const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-        const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const dateStr = now.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+        const notificationTitle = automatic ? AUTO_RING_TITLE : MANUAL_RING_TITLE;
+        const openingLine = automatic
+            ? 'Someone special opened your MyLifeCall site.'
+            : 'Someone special used MyLifeCall to ring your phone.';
 
         const response = await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
             method: 'POST',
             headers: {
-                'Title': 'business task!',
+                'Title': encodeNtfyHeader(notificationTitle),
                 'Priority': '5',
-                'Tags': 'phone,loudspeaker,rotating_light',
+                'Tags': 'phone,loudspeaker,rotating_light'
             },
-            body: `Businness update client!\n\n🕐 Time: ${timeStr}\n📅 Date: ${dateStr}\n🌐 Page: ${window.location.href}`
+            body: `${openingLine}\n\n🕐 Time: ${timeStr}\n📅 Date: ${dateStr}\n🌐 Page: ${window.location.href}`
         });
 
-        if (response.ok) {
-            // Success
-            ringCount++;
-            ringCountEl.textContent = ringCount;
+        if (!response.ok) throw new Error(`ntfy returned ${response.status}`);
+
+        ringCount += 1;
+        ringCountEl.textContent = ringCount;
+
+        if (controlsRingUi) {
             statusIcon.className = 'status-icon success';
             statusText.textContent = '✅ Phone is ringing! Call sent successfully.';
             buttonText.textContent = 'Ring Sent!';
-
-            // Start cooldown
             startCooldown();
-        } else {
-            throw new Error(`Failed: ${response.status}`);
         }
     } catch (error) {
         console.error('Ring failed:', error);
-        statusIcon.className = 'status-icon error';
-        statusText.textContent = '❌ Failed to ring. Please try again.';
-        buttonText.textContent = 'Try Again';
-        ringButton.disabled = false;
+        if (controlsRingUi) {
+            statusIcon.className = 'status-icon error';
+            statusText.textContent = '❌ The ring could not be sent. Check your connection and try again.';
+            buttonText.textContent = 'Try Again';
+            ringButton.disabled = false;
+        }
     }
 }
 
 function startCooldown() {
+    if (cooldownInterval) clearInterval(cooldownInterval);
+
     cooldownRemaining = COOLDOWN_SECONDS;
     cooldownBar.classList.add('active');
     updateCooldownUI();
 
-    cooldownInterval = setInterval(() => {
-        cooldownRemaining--;
+    cooldownInterval = window.setInterval(() => {
+        cooldownRemaining -= 1;
 
         if (cooldownRemaining <= 0) {
-            // Cooldown complete
             clearInterval(cooldownInterval);
             cooldownInterval = null;
             cooldownBar.classList.remove('active');
             cooldownProgress.style.width = '0%';
             cooldownText.textContent = '';
-
-            // Re-enable button
             ringButton.disabled = false;
             buttonText.textContent = 'Ring Again 🔔';
             statusIcon.className = 'status-icon';
             statusText.textContent = 'Ready to ring again! Tap the button.';
-        } else {
-            updateCooldownUI();
+            return;
         }
+
+        updateCooldownUI();
     }, 1000);
 }
 
 function updateCooldownUI() {
     const elapsed = COOLDOWN_SECONDS - cooldownRemaining;
-    const progressPercent = (elapsed / COOLDOWN_SECONDS) * 100;
-    cooldownProgress.style.width = `${progressPercent}%`;
+    cooldownProgress.style.width = `${(elapsed / COOLDOWN_SECONDS) * 100}%`;
     cooldownText.textContent = `You can ring again in ${cooldownRemaining}s`;
     buttonText.textContent = `Wait ${cooldownRemaining}s`;
 }
@@ -168,122 +222,198 @@ function updateCooldownUI() {
 // Chat Functionality
 // ==========================================
 
-async function deleteChatHistory() {
-    if (!confirm("Are you sure you want to delete everyone's chat history? This cannot be undone.")) return;
+function syncBodyScrollLock() {
+    const shouldLock = isChatOpen && mobileChatMedia.matches;
 
-    try {
-        const snapshot = await db.collection('messages').get();
-        
-        const batch = db.batch();
-        snapshot.docs.forEach((doc) => {
-            batch.delete(doc.ref);
-        });
-        await batch.commit();
-
-        // Optional: clear the UI immediately
-        const dateDivider = chatBody.querySelector('.chat-date-divider');
-        chatBody.innerHTML = '';
-        if (dateDivider) chatBody.appendChild(dateDivider);
-        
-        toggleChatWindow(); // Close the window
-        
-    } catch (error) {
-        console.error("Failed to delete chat history:", error);
-        alert("Failed to delete history. Please try again.");
+    if (shouldLock && !isBodyScrollLocked) {
+        bodyOverflowBeforeChat = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        isBodyScrollLocked = true;
+    } else if (!shouldLock && isBodyScrollLocked) {
+        document.body.style.overflow = bodyOverflowBeforeChat;
+        bodyOverflowBeforeChat = '';
+        isBodyScrollLocked = false;
     }
+}
+
+function setChatOpen(open) {
+    isChatOpen = open;
+    [openChatBtn, floatingChatBtn].forEach((button) => {
+        if (button) button.setAttribute('aria-expanded', String(open));
+    });
+    chatWindow.setAttribute('aria-hidden', String(!open));
+    syncBodyScrollLock();
+
+    if (open) {
+        if (chatHideTimer) {
+            clearTimeout(chatHideTimer);
+            chatHideTimer = null;
+        }
+        chatWindow.classList.remove('hidden');
+        unreadCount = 0;
+        msgBadge.hidden = true;
+
+        window.requestAnimationFrame(() => {
+            if (!isChatOpen) return;
+            chatWindow.classList.add('active');
+            try {
+                chatInput.focus({ preventScroll: true });
+            } catch (error) {
+                chatInput.focus();
+            }
+            scrollToBottom();
+        });
+        return;
+    }
+
+    chatWindow.classList.remove('active');
+    if (chatHideTimer) clearTimeout(chatHideTimer);
+    chatHideTimer = window.setTimeout(() => {
+        if (!isChatOpen) chatWindow.classList.add('hidden');
+        chatHideTimer = null;
+    }, 300);
 }
 
 function toggleChatWindow() {
-    isChatOpen = !isChatOpen;
-    
-    if (isChatOpen) {
-        chatWindow.classList.remove('hidden');
-        // Reset unread counts
-        unreadCount = 0;
-        msgBadge.style.display = 'none';
-        
-        setTimeout(() => {
-            chatWindow.classList.add('active');
-            chatInput.focus();
-            scrollToBottom();
-        }, 10);
-    } else {
-        chatWindow.classList.remove('active');
-        setTimeout(() => chatWindow.classList.add('hidden'), 300);
+    setChatOpen(!isChatOpen);
+}
+
+function updateSendButton() {
+    chatSendBtn.disabled = isSendingMessage || chatInput.value.trim().length === 0;
+}
+
+function persistOptionalName() {
+    const limitedName = chatNameInput.value.slice(0, MAX_NAME_LENGTH);
+    if (chatNameInput.value !== limitedName) chatNameInput.value = limitedName;
+
+    try {
+        if (limitedName.trim()) {
+            localStorage.setItem(CHAT_NAME_STORAGE_KEY, limitedName);
+        } else {
+            localStorage.removeItem(CHAT_NAME_STORAGE_KEY);
+        }
+    } catch (error) {
+        console.warn('Could not save the chat name:', error);
     }
 }
 
-// Enable/Disable send button based on input
 chatInput.addEventListener('input', () => {
-    chatSendBtn.disabled = chatInput.value.trim().length === 0;
+    if (chatInput.value.length > MAX_MESSAGE_LENGTH) {
+        chatInput.value = chatInput.value.slice(0, MAX_MESSAGE_LENGTH);
+    }
+    chatInput.removeAttribute('aria-invalid');
+    updateSendButton();
 });
 
-// Send on Enter
-chatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
+chatNameInput.addEventListener('input', persistOptionalName);
+
+chatInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.isComposing) {
+        event.preventDefault();
         sendChatMessage();
     }
 });
 
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isChatOpen) {
+        event.preventDefault();
+        setChatOpen(false);
+        floatingChatBtn.focus();
+    }
+});
+
+if (typeof mobileChatMedia.addEventListener === 'function') {
+    mobileChatMedia.addEventListener('change', syncBodyScrollLock);
+} else {
+    mobileChatMedia.addListener(syncBodyScrollLock);
+}
+
 async function sendChatMessage() {
-    const text = chatInput.value.trim();
-    if (!text) return;
+    if (isSendingMessage) return;
 
-    const name = chatNameInput.value.trim() || 'Anonymous';
-    
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    
-    // Clear input
-    chatInput.value = '';
-    chatSendBtn.disabled = true;
-
-    // Save to Firestore (Global Collection)
-    try {
-        await db.collection('messages').add({
-            text: text,
-            timeStr: timeStr,
-            type: 'sent',
-            sender: name,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
-    } catch (e) {
-        console.error("Error saving to Firestore:", e);
-        appendChatBubble("Failed to send.", timeStr, 'sent');
+    const text = chatInput.value.trim().slice(0, MAX_MESSAGE_LENGTH);
+    if (!text) {
+        updateSendButton();
         return;
     }
 
-    // Send original push notification to you
+    const optionalName = chatNameInput.value.trim().slice(0, MAX_NAME_LENGTH);
+    const senderName = optionalName || 'Anonymous';
+    const timeStr = getCurrentTime();
+
+    isSendingMessage = true;
+    chatInput.disabled = true;
+    chatNameInput.disabled = true;
+    updateSendButton();
+    persistOptionalName();
+
     try {
-        const response = await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-            method: 'POST',
-            headers: {
-                'Title': `New Message from ${name}`,
-                'Priority': '4',
-                'Tags': 'speech_balloon,incoming_envelope',
-            },
-            body: `${text}\n\n🕐 Time: ${timeStr}`
+        await db.collection('messages').add({
+            text,
+            timeStr,
+            type: 'sent',
+            sender: senderName,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        if (!response.ok) {
-            console.error(`Failed to send via ntfy: ${response.status}`);
+        // Only clear after Firestore accepts the message, so failed sends keep the text.
+        chatInput.value = '';
+        chatInput.removeAttribute('aria-invalid');
+
+        try {
+            const response = await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+                method: 'POST',
+                headers: {
+                    'Title': encodeNtfyHeader(`${WEB_MESSAGE_TITLE_PREFIX}${senderName}`),
+                    'Priority': '4',
+                    'Tags': 'speech_balloon,incoming_envelope'
+                },
+                body: `${text}\n\nFrom: ${senderName}\n🕐 Time: ${timeStr}`
+            });
+
+            if (!response.ok) throw new Error(`ntfy returned ${response.status}`);
+        } catch (error) {
+            console.error('Phone notification failed:', error);
+            appendChatBubble(
+                'Your message was saved in chat, but the phone notification could not be delivered.',
+                getCurrentTime(),
+                'received'
+            );
         }
     } catch (error) {
-        console.error('Message failed:', error);
+        console.error('Error saving message to Firestore:', error);
+        chatInput.setAttribute('aria-invalid', 'true');
+        appendChatBubble(
+            'Your message was not sent. Check your connection and try again — your text is still here.',
+            getCurrentTime(),
+            'received'
+        );
+    } finally {
+        isSendingMessage = false;
+        chatInput.disabled = false;
+        chatNameInput.disabled = false;
+        updateSendButton();
+        if (isChatOpen) chatInput.focus();
     }
 }
 
 function appendChatBubble(text, timeStr, type = 'received') {
     const bubble = document.createElement('div');
-    bubble.className = `chat-message ${type}`;
-    
-    bubble.innerHTML = `
-        ${text}
-        <span class="chat-time-label">${timeStr}</span>
-    `;
-    
+    const safeType = type === 'sent' ? 'sent' : 'received';
+    bubble.classList.add('chat-message', safeType);
+    bubble.appendChild(document.createTextNode(String(text ?? '')));
+
+    const timeLabel = document.createElement('span');
+    timeLabel.className = 'chat-time-label';
+    timeLabel.textContent = String(timeStr ?? '');
+    bubble.appendChild(timeLabel);
+
     chatBody.appendChild(bubble);
     scrollToBottom();
+}
+
+function getCurrentTime() {
+    return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 function scrollToBottom() {
@@ -294,53 +424,95 @@ function scrollToBottom() {
 // Listen for incoming messages (Replies)
 // ==========================================
 
+function encodeNtfyHeader(value) {
+    const bytes = new TextEncoder().encode(value);
+    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+    return `=?UTF-8?B?${btoa(binary)}?=`;
+}
+
+function decodeNtfyHeader(value) {
+    const match = /^=\?UTF-8\?B\?([^?]+)\?=$/i.exec(value);
+    if (!match) return value;
+
+    try {
+        const binary = atob(match[1]);
+        const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        return new TextDecoder().decode(bytes);
+    } catch (error) {
+        console.warn('Could not decode an ntfy title:', error);
+        return value;
+    }
+}
+
+function isWebSentNotificationTitle(title) {
+    const decodedTitle = decodeNtfyHeader(title);
+    return decodedTitle === AUTO_RING_TITLE
+        || decodedTitle === MANUAL_RING_TITLE
+        || decodedTitle.startsWith(WEB_MESSAGE_TITLE_PREFIX);
+}
+
 function setupMessageListener() {
     const eventSource = new EventSource(`https://ntfy.sh/${NTFY_TOPIC}/sse`);
 
     eventSource.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
+            if (data.event !== 'message' || typeof data.message !== 'string' || !data.message.trim()) return;
 
-            // Process new messages
-            if (data.event === 'message' && data.message) {
-                // Ignore our own outgoing messages (rings and messages sent from site)
-                if (data.message.includes('INCOMING CALL') || (data.title && data.title.includes('New Message from'))) return;
+            const title = typeof data.title === 'string' ? data.title : '';
+            // Explicitly ignore all notifications sent by this page, including auto-rings.
+            if (isWebSentNotificationTitle(title)) return;
 
-                // Make sure it's a genuine reply (or just testing)
-                addMessageToPanel(data.message, data.title || 'Me');
+            const eventId = typeof data.id === 'string' ? data.id.trim() : '';
+            if (!eventId || eventId.length > 200) {
+                console.warn('Ignoring ntfy reply without a valid event id.');
+                return;
             }
-        } catch (e) {
-            console.error('Error parsing notification:', e);
+            if (seenNtfyEventIds.has(eventId)) return;
+            seenNtfyEventIds.add(eventId);
+
+            addMessageToPanel(data.message.trim(), title, eventId);
+        } catch (error) {
+            console.error('Error parsing ntfy notification:', error);
         }
+    };
+
+    eventSource.onerror = () => {
+        // EventSource reconnects automatically; logging makes persistent failures diagnosable.
+        console.warn('ntfy reply stream disconnected; waiting to reconnect.');
     };
 }
 
-function addMessageToPanel(text, title) {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    
-    // Save your reply to the global chat
-    db.collection('messages').add({
-        text: text,
-        timeStr: timeStr,
-        type: 'received',
-        sender: 'You',
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    }).catch(e => console.error("Error saving reply to Firestore:", e));
-    
-    // Update badge / notification dot
-    floatingChatBtn.classList.remove('hidden'); // Show floating button
-    
-    if (!isChatOpen) {
-        unreadCount++;
-        msgBadge.textContent = unreadCount;
-        msgBadge.style.display = 'flex';
-        
-        // Add animation for new message
-        floatingChatBtn.classList.add('pulse');
-        setTimeout(() => floatingChatBtn.classList.remove('pulse'), 1000);
-    }
+function getNtfyDocumentId(eventId) {
+    return `ntfy_${encodeURIComponent(eventId).replace(/\./g, '%2E')}`;
 }
 
-// Initialize the listener
-setupMessageListener();
+async function addMessageToPanel(text, title, eventId) {
+    const timeStr = getCurrentTime();
+    const sender = String(title || 'You').trim().slice(0, MAX_NAME_LENGTH) || 'You';
+
+    try {
+        // Every browser writes the same ntfy event to the same document, preventing duplicates.
+        await db.collection('messages').doc(getNtfyDocumentId(eventId)).set({
+            text: String(text).slice(0, MAX_MESSAGE_LENGTH),
+            timeStr,
+            type: 'received',
+            sender,
+            ntfyEventId: eventId,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } catch (error) {
+        console.error('Error saving ntfy reply to Firestore:', error);
+        return;
+    }
+
+    floatingChatBtn.classList.remove('hidden');
+
+    if (!isChatOpen) {
+        unreadCount += 1;
+        msgBadge.textContent = unreadCount;
+        msgBadge.hidden = false;
+        floatingChatBtn.classList.add('pulse');
+        window.setTimeout(() => floatingChatBtn.classList.remove('pulse'), 1000);
+    }
+}
