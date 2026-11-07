@@ -1,12 +1,9 @@
 /* ============================================
    MyLifeCall — Phone Ring Script
+   100% Firebase-powered (no ntfy dependency)
    ============================================ */
 
-// ⚠️ IMPORTANT: Change this to YOUR unique ntfy topic!
-// This must match the topic you subscribed to in the ntfy app on your phone.
-const NTFY_TOPIC = 'mylifecall-ring-basit';
-
-// Firebase Configuration (from subagent setup)
+// Firebase Configuration
 const firebaseConfig = {
     apiKey: "AIzaSyCpMlfNxaKSOnyUokMaxSkxJ2r9mDKyLA4",
     authDomain: "mylifecall-chat.firebaseapp.com",
@@ -26,24 +23,6 @@ const COOLDOWN_SECONDS = 30;
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_NAME_LENGTH = 40;
 const CHAT_NAME_STORAGE_KEY = 'mylifecall-chat-name';
-const AUTO_RING_TITLE = 'business meeting reminder';
-const MANUAL_RING_TITLE = '🔔 business meeting reminder';
-const WEB_MESSAGE_TITLE_PREFIX = '💬 New MyLifeCall message from ';
-
-// ==========================================
-// Notification Provider Configuration
-// ==========================================
-// ntfy.sh can be unreliable (ERR_CONNECTION_RESET).
-// We use a multi-strategy approach:
-//   1. Try ntfy.sh first for ring/chat notifications
-//   2. If ntfy fails, store the notification in Firestore "pending_rings"
-//      so the phone can poll it (via a lightweight polling approach)
-//   3. For incoming replies: use Firestore listener instead of ntfy SSE
-//      (eliminates the flaky SSE connection entirely)
-
-const NTFY_TIMEOUT_MS = 8000; // 8 second timeout for ntfy requests
-const NTFY_MAX_RETRIES = 2;   // Retry ntfy up to 2 times before fallback
-const NTFY_RETRY_DELAY_MS = 1500; // Wait between retries
 
 // Track ring and chat state for this page
 let ringCount = 0;
@@ -57,15 +36,6 @@ let unsubscribeFirestore = null;
 let chatHideTimer = null;
 let bodyOverflowBeforeChat = '';
 let isBodyScrollLocked = false;
-const seenNtfyEventIds = new Set();
-
-// ntfy SSE connection health tracking
-let ntfyEventSource = null;
-let ntfyReconnectAttempts = 0;
-const NTFY_MAX_RECONNECT_ATTEMPTS = 5;
-const NTFY_RECONNECT_BASE_DELAY_MS = 2000;
-let ntfyReconnectTimer = null;
-let ntfyConnectionHealthy = false;
 
 // DOM elements
 const ringButton = document.getElementById('ringButton');
@@ -107,7 +77,6 @@ try {
 
 updateSendButton();
 listenToMessages();
-setupMessageListener();
 
 function resetChatBody() {
     const dateDivider = chatBody.querySelector('.chat-date-divider');
@@ -145,7 +114,7 @@ function scheduleAutoRing() {
     window.setTimeout(() => ringPhone({ automatic: true }), 1500);
 }
 
-// Always send the automatic priority-5 page-open ring shortly after page load.
+// Always send the automatic page-open ring shortly after page load.
 if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', scheduleAutoRing, { once: true });
 } else {
@@ -153,71 +122,13 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================
-// Robust Notification Sending (ntfy + Firestore fallback)
+// Ring via Firestore (replaces ntfy)
 // ==========================================
-
-/**
- * Send a notification with timeout and retry logic.
- * Falls back to storing in Firestore if ntfy is completely unreachable.
- */
-async function sendNotificationRobust(title, priority, tags, body) {
-    let lastError = null;
-
-    // Try ntfy with retries
-    for (let attempt = 0; attempt < NTFY_MAX_RETRIES; attempt++) {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), NTFY_TIMEOUT_MS);
-
-            const response = await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-                method: 'POST',
-                headers: {
-                    'Title': encodeNtfyHeader(title),
-                    'Priority': String(priority),
-                    'Tags': tags
-                },
-                body: body,
-                signal: controller.signal
-            });
-
-            clearTimeout(timeoutId);
-
-            if (!response.ok) throw new Error(`ntfy returned ${response.status}`);
-
-            return { success: true, method: 'ntfy' };
-        } catch (error) {
-            lastError = error;
-            console.warn(`ntfy attempt ${attempt + 1}/${NTFY_MAX_RETRIES} failed:`, error.message);
-
-            if (attempt < NTFY_MAX_RETRIES - 1) {
-                await new Promise(resolve => setTimeout(resolve, NTFY_RETRY_DELAY_MS));
-            }
-        }
-    }
-
-    // Fallback: store notification in Firestore so it can be retrieved
-    console.warn('ntfy unreachable after retries, storing notification in Firestore as fallback.');
-    try {
-        await db.collection('pending_notifications').add({
-            title: title,
-            priority: priority,
-            tags: tags,
-            body: body,
-            status: 'pending',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        return { success: true, method: 'firestore_fallback' };
-    } catch (firestoreError) {
-        console.error('Firestore fallback also failed:', firestoreError);
-        throw lastError; // Throw original ntfy error
-    }
-}
 
 async function ringPhone(options = {}) {
     const automatic = Boolean(options && options.automatic);
     if (!automatic && ringButton.disabled) return;
 
-    // If a manual ring is already running, the required auto-ring is sent quietly.
     const controlsRingUi = !ringButton.disabled;
     if (controlsRingUi) {
         ringButton.disabled = true;
@@ -234,28 +145,29 @@ async function ringPhone(options = {}) {
             day: 'numeric',
             year: 'numeric'
         });
-        const notificationTitle = automatic ? AUTO_RING_TITLE : MANUAL_RING_TITLE;
+
+        const ringType = automatic ? 'auto' : 'manual';
         const openingLine = automatic
             ? 'Someone special opened your MyLifeCall site.'
             : 'Someone special used MyLifeCall to ring your phone.';
 
-        const result = await sendNotificationRobust(
-            notificationTitle,
-            5,
-            'phone,loudspeaker,rotating_light',
-            `${openingLine}\n\n🕐 Time: ${timeStr}\n📅 Date: ${dateStr}\n🌐 Page: ${window.location.href}`
-        );
+        // Write ring event to Firestore — the receiver page listens for this
+        await db.collection('rings').add({
+            type: ringType,
+            message: openingLine,
+            timeStr: timeStr,
+            dateStr: dateStr,
+            page: window.location.href,
+            status: 'pending',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
 
         ringCount += 1;
         ringCountEl.textContent = ringCount;
 
         if (controlsRingUi) {
             statusIcon.className = 'status-icon success';
-            if (result.method === 'firestore_fallback') {
-                statusText.textContent = '✅ Ring saved! It will be delivered when connection restores.';
-            } else {
-                statusText.textContent = '✅ Phone is ringing! Call sent successfully.';
-            }
+            statusText.textContent = '✅ Phone is ringing! Call sent successfully.';
             buttonText.textContent = 'Ring Sent!';
             startCooldown();
         }
@@ -500,25 +412,21 @@ async function sendChatMessage() {
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        // Only clear after Firestore accepts the message, so failed sends keep the text.
+        // Also create a ring-style notification so the receiver page alerts
+        await db.collection('rings').add({
+            type: 'message',
+            message: `💬 New message from ${senderName}: ${text.slice(0, 100)}`,
+            timeStr: timeStr,
+            dateStr: new Date().toLocaleDateString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric'
+            }),
+            sender: senderName,
+            status: 'pending',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
         chatInput.value = '';
         chatInput.removeAttribute('aria-invalid');
-
-        try {
-            await sendNotificationRobust(
-                `${WEB_MESSAGE_TITLE_PREFIX}${senderName}`,
-                4,
-                'speech_balloon,incoming_envelope',
-                `${text}\n\nFrom: ${senderName}\n🕐 Time: ${timeStr}`
-            );
-        } catch (error) {
-            console.error('Phone notification failed:', error);
-            appendChatBubble(
-                'Your message was saved in chat, but the phone notification could not be delivered.',
-                getCurrentTime(),
-                'received'
-            );
-        }
     } catch (error) {
         console.error('Error saving message to Firestore:', error);
         chatInput.setAttribute('aria-invalid', 'true');
@@ -558,166 +466,3 @@ function getCurrentTime() {
 function scrollToBottom() {
     chatBody.scrollTop = chatBody.scrollHeight;
 }
-
-// ==========================================
-// Listen for incoming messages (Replies)
-// ==========================================
-
-function encodeNtfyHeader(value) {
-    const bytes = new TextEncoder().encode(value);
-    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
-    return `=?UTF-8?B?${btoa(binary)}?=`;
-}
-
-function decodeNtfyHeader(value) {
-    const match = /^=\?UTF-8\?B\?([^?]+)\?=$/i.exec(value);
-    if (!match) return value;
-
-    try {
-        const binary = atob(match[1]);
-        const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-        return new TextDecoder().decode(bytes);
-    } catch (error) {
-        console.warn('Could not decode an ntfy title:', error);
-        return value;
-    }
-}
-
-function isWebSentNotificationTitle(title) {
-    const decodedTitle = decodeNtfyHeader(title);
-    return decodedTitle === AUTO_RING_TITLE
-        || decodedTitle === MANUAL_RING_TITLE
-        || decodedTitle.startsWith(WEB_MESSAGE_TITLE_PREFIX);
-}
-
-/**
- * Setup the ntfy SSE listener with exponential backoff reconnection.
- * Falls back gracefully — replies still come through Firestore listener.
- */
-function setupMessageListener() {
-    // Clean up any existing connection
-    if (ntfyEventSource) {
-        try { ntfyEventSource.close(); } catch (e) { /* ignore */ }
-        ntfyEventSource = null;
-    }
-    if (ntfyReconnectTimer) {
-        clearTimeout(ntfyReconnectTimer);
-        ntfyReconnectTimer = null;
-    }
-
-    // If we've exceeded max reconnect attempts, stop trying and rely on Firestore
-    if (ntfyReconnectAttempts >= NTFY_MAX_RECONNECT_ATTEMPTS) {
-        console.warn(
-            `ntfy SSE: gave up after ${NTFY_MAX_RECONNECT_ATTEMPTS} reconnect attempts. ` +
-            `Replies will still arrive through Firestore real-time listener.`
-        );
-        ntfyConnectionHealthy = false;
-        return;
-    }
-
-    try {
-        ntfyEventSource = new EventSource(`https://ntfy.sh/${NTFY_TOPIC}/sse`);
-
-        ntfyEventSource.onopen = () => {
-            console.log('ntfy SSE: connected successfully.');
-            ntfyReconnectAttempts = 0; // Reset on successful connection
-            ntfyConnectionHealthy = true;
-        };
-
-        ntfyEventSource.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.event !== 'message' || typeof data.message !== 'string' || !data.message.trim()) return;
-
-                const title = typeof data.title === 'string' ? data.title : '';
-                // Explicitly ignore all notifications sent by this page, including auto-rings.
-                if (isWebSentNotificationTitle(title)) return;
-
-                const eventId = typeof data.id === 'string' ? data.id.trim() : '';
-                if (!eventId || eventId.length > 200) {
-                    console.warn('Ignoring ntfy reply without a valid event id.');
-                    return;
-                }
-                if (seenNtfyEventIds.has(eventId)) return;
-                seenNtfyEventIds.add(eventId);
-
-                addMessageToPanel(data.message.trim(), title, eventId);
-            } catch (error) {
-                console.error('Error parsing ntfy notification:', error);
-            }
-        };
-
-        ntfyEventSource.onerror = () => {
-            ntfyConnectionHealthy = false;
-            ntfyReconnectAttempts += 1;
-
-            // Close the broken connection
-            try { ntfyEventSource.close(); } catch (e) { /* ignore */ }
-            ntfyEventSource = null;
-
-            // Calculate exponential backoff delay
-            const delay = Math.min(
-                NTFY_RECONNECT_BASE_DELAY_MS * Math.pow(2, ntfyReconnectAttempts - 1),
-                60000 // Cap at 60 seconds
-            );
-
-            console.warn(
-                `ntfy SSE: disconnected (attempt ${ntfyReconnectAttempts}/${NTFY_MAX_RECONNECT_ATTEMPTS}). ` +
-                `Retrying in ${Math.round(delay / 1000)}s...`
-            );
-
-            ntfyReconnectTimer = setTimeout(() => {
-                setupMessageListener();
-            }, delay);
-        };
-    } catch (error) {
-        console.error('ntfy SSE: failed to create EventSource:', error);
-        ntfyConnectionHealthy = false;
-    }
-}
-
-function getNtfyDocumentId(eventId) {
-    return `ntfy_${encodeURIComponent(eventId).replace(/\./g, '%2E')}`;
-}
-
-async function addMessageToPanel(text, title, eventId) {
-    const timeStr = getCurrentTime();
-    const sender = String(title || 'You').trim().slice(0, MAX_NAME_LENGTH) || 'You';
-
-    try {
-        // Every browser writes the same ntfy event to the same document, preventing duplicates.
-        await db.collection('messages').doc(getNtfyDocumentId(eventId)).set({
-            text: String(text).slice(0, MAX_MESSAGE_LENGTH),
-            timeStr,
-            type: 'received',
-            sender,
-            ntfyEventId: eventId,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
-    } catch (error) {
-        console.error('Error saving ntfy reply to Firestore:', error);
-        return;
-    }
-
-    floatingChatBtn.classList.remove('hidden');
-
-    if (!isChatOpen) {
-        unreadCount += 1;
-        msgBadge.textContent = unreadCount;
-        msgBadge.hidden = false;
-        floatingChatBtn.classList.add('pulse');
-        window.setTimeout(() => floatingChatBtn.classList.remove('pulse'), 1000);
-    }
-}
-
-// ==========================================
-// Periodic ntfy health check — try to restore
-// the SSE connection if it died earlier
-// ==========================================
-setInterval(() => {
-    if (!ntfyConnectionHealthy && !ntfyEventSource && !ntfyReconnectTimer) {
-        console.log('ntfy SSE: periodic health check — attempting to restore connection.');
-        ntfyReconnectAttempts = 0; // Reset for fresh attempt
-        setupMessageListener();
-    }
-}, 5 * 60 * 1000); // Every 5 minutes

@@ -1,0 +1,10 @@
+{
+    "name": "MyLifeCall Receiver",
+    "short_name": "MyLifeCall",
+    "description": "Receive ring alerts and messages from MyLifeCall",
+    "start_url": "./receiver.html",
+    "display": "standalone",
+    "background_color": "#0a0a1a",
+    "theme_color": "#6c5ce7",
+    "icons": []
+}

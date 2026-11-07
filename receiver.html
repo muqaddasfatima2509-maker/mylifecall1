@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyLifeCall — Receiver</title>
+    <meta name="description" content="Keep this page open on your phone to receive ring alerts and messages.">
+    <meta name="theme-color" content="#6c5ce7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-dark: #0a0a1a;
+            --bg-card: #12122a;
+            --primary: #6c5ce7;
+            --primary-light: #a29bfe;
+            --success: #00cec9;
+            --danger: #ff6b6b;
+            --warning: #fdcb6e;
+            --text: #e8e8f0;
+            --text-dim: #8888aa;
+            --border: #2a2a4a;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 30px 0 20px;
+        }
+
+        .header h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-light), var(--success));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-top: 6px;
+        }
+
+        /* Status Card */
+        .status-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin: 16px 0;
+            text-align: center;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .status-indicator.listening {
+            background: rgba(0, 206, 201, 0.15);
+            color: var(--success);
+            border: 1px solid rgba(0, 206, 201, 0.3);
+        }
+
+        .status-indicator.ringing {
+            background: rgba(255, 107, 107, 0.15);
+            color: var(--danger);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            animation: pulse-ring 0.6s ease-in-out infinite alternate;
+        }
+
+        .status-indicator.stopped {
+            background: rgba(136, 136, 170, 0.15);
+            color: var(--text-dim);
+            border: 1px solid rgba(136, 136, 170, 0.3);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-indicator.listening .status-dot {
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        .status-indicator.ringing .status-dot {
+            animation: blink 0.4s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        @keyframes pulse-ring {
+            from { transform: scale(1); }
+            to { transform: scale(1.05); }
+        }
+
+        .status-message {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            margin-top: 8px;
+        }
+
+        .ring-count {
+            font-size: 2.5rem;
+            font-weight: 800;
+            font-family: 'Outfit', sans-serif;
+            color: var(--primary-light);
+            margin: 8px 0 4px;
+        }
+
+        .ring-label {
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        /* Enable Sound Button */
+        .enable-sound-btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border: 2px solid var(--primary);
+            background: linear-gradient(135deg, var(--primary), #5a4bd1);
+            color: white;
+            font-size: 1rem;
+            font-weight: 700;
+            border-radius: 14px;
+            cursor: pointer;
+            margin: 16px 0;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .enable-sound-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(108, 92, 231, 0.4);
+        }
+
+        .enable-sound-btn.enabled {
+            background: linear-gradient(135deg, var(--success), #00b5b0);
+            border-color: var(--success);
+        }
+
+        .enable-sound-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Stop Ring Button */
+        .stop-ring-btn {
+            display: none;
+            width: 100%;
+            padding: 18px;
+            border: 2px solid var(--danger);
+            background: linear-gradient(135deg, var(--danger), #e55555);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 800;
+            border-radius: 14px;
+            cursor: pointer;
+            margin: 16px 0;
+            font-family: 'Inter', sans-serif;
+            animation: pulse-ring 0.5s ease-in-out infinite alternate;
+        }
+
+        .stop-ring-btn.visible {
+            display: block;
+        }
+
+        /* Ring Log */
+        .log-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+
+        .log-title {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .log-list {
+            list-style: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(42, 42, 74, 0.5);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .log-item:last-child { border-bottom: none; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .log-text {
+            font-size: 0.85rem;
+            color: var(--text);
+            line-height: 1.4;
+        }
+
+        .log-time {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+
+        .log-empty {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            padding: 20px 0;
+        }
+
+        /* Reply Section */
+        .reply-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+
+        .reply-title {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 12px;
+        }
+
+        .reply-input-wrapper {
+            display: flex;
+            gap: 8px;
+        }
+
+        .reply-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .reply-input:focus {
+            border-color: var(--primary);
+        }
+
+        .reply-send-btn {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, var(--primary), #5a4bd1);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .reply-send-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        .reply-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 24px 0;
+            color: var(--text-dim);
+            font-size: 0.7rem;
+        }
+
+        /* Volume Control */
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+        }
+
+        .volume-label {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            white-space: nowrap;
+        }
+
+        .volume-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: var(--border);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .volume-value {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            min-width: 36px;
+            text-align: right;
+        }
+
+        /* Responsive */
+        @media (max-width: 400px) {
+            body { padding: 12px; }
+            .header h1 { font-size: 1.3rem; }
+            .ring-count { font-size: 2rem; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 MyLifeCall Receiver</h1>
+            <p>Keep this page open to receive ring alerts</p>
+        </div>
+
+        <div class="status-card">
+            <div class="status-indicator stopped" id="statusIndicator">
+                <span class="status-dot"></span>
+                <span id="statusLabel">Tap "Enable Sound" to start</span>
+            </div>
+            <div class="ring-count" id="ringCount">0</div>
+            <div class="ring-label">Rings Received</div>
+            <p class="status-message" id="statusMessage">Sound is not enabled yet</p>
+        </div>
+
+        <button class="enable-sound-btn" id="enableSoundBtn" onclick="enableSound()">
+            🔊 Enable Sound & Start Listening
+        </button>
+
+        <button class="stop-ring-btn" id="stopRingBtn" onclick="stopRing()">
+            🔇 STOP RINGING
+        </button>
+
+        <div class="status-card">
+            <div class="volume-control">
+                <span class="volume-label">🔊 Volume</span>
+                <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" oninput="updateVolume(this.value)">
+                <span class="volume-value" id="volumeValue">100%</span>
+            </div>
+        </div>
+
+        <!-- Reply Section -->
+        <div class="reply-section">
+            <div class="reply-title">Quick Reply</div>
+            <div class="reply-input-wrapper">
+                <input type="text" class="reply-input" id="replyInput" placeholder="Type a reply..." maxlength="500" autocomplete="off">
+                <button class="reply-send-btn" id="replySendBtn" onclick="sendReply()" disabled>Send</button>
+            </div>
+        </div>
+
+        <div class="log-card">
+            <div class="log-title">Recent Activity</div>
+            <ul class="log-list" id="logList">
+                <li class="log-empty" id="logEmpty">No rings yet — waiting for visitors...</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>© 2026 MyLifeCall — Keep this tab open for alerts</p>
+            <p style="margin-top: 4px;">💡 Add to Home Screen for best experience</p>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration (same as main site)
+        const firebaseConfig = {
+            apiKey: "AIzaSyCpMlfNxaKSOnyUokMaxSkxJ2r9mDKyLA4",
+            authDomain: "mylifecall-chat.firebaseapp.com",
+            projectId: "mylifecall-chat",
+            storageBucket: "mylifecall-chat.firebasestorage.app",
+            messagingSenderId: "1002911804959",
+            appId: "1:1002911804959:web:784c551c78dbefdbd0ef2a"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // State
+        let audioCtx = null;
+        let soundEnabled = false;
+        let isRinging = false;
+        let ringOscillator = null;
+        let ringGain = null;
+        let ringInterval = null;
+        let ringCount = 0;
+        let volume = 1.0;
+        let unsubscribeRings = null;
+        let lastProcessedTimestamp = null;
+        let isSendingReply = false;
+
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusLabel = document.getElementById('statusLabel');
+        const statusMessage = document.getElementById('statusMessage');
+        const ringCountEl = document.getElementById('ringCount');
+        const enableSoundBtn = document.getElementById('enableSoundBtn');
+        const stopRingBtn = document.getElementById('stopRingBtn');
+        const logList = document.getElementById('logList');
+        const logEmpty = document.getElementById('logEmpty');
+        const replyInput = document.getElementById('replyInput');
+        const replySendBtn = document.getElementById('replySendBtn');
+
+        replyInput.addEventListener('input', () => {
+            replySendBtn.disabled = isSendingReply || replyInput.value.trim().length === 0;
+        });
+
+        replyInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.isComposing) {
+                e.preventDefault();
+                sendReply();
+            }
+        });
+
+        // ==========================================
+        // Audio: Generate ringtone using Web Audio API
+        // ==========================================
+
+        function createAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        function startRingtone() {
+            if (isRinging) return;
+            isRinging = true;
+
+            const ctx = createAudioContext();
+            ringGain = ctx.createGain();
+            ringGain.gain.value = 0;
+            ringGain.connect(ctx.destination);
+
+            // Ring pattern: beep-beep, pause, beep-beep, pause...
+            let step = 0;
+            const pattern = [
+                { freq: 880, dur: 200 },   // High beep
+                { freq: 0, dur: 100 },       // Short pause
+                { freq: 880, dur: 200 },   // High beep
+                { freq: 0, dur: 600 },       // Long pause
+                { freq: 1046, dur: 200 },  // Higher beep
+                { freq: 0, dur: 100 },       // Short pause
+                { freq: 1046, dur: 200 },  // Higher beep
+                { freq: 0, dur: 800 },       // Long pause
+            ];
+
+            function playStep() {
+                if (!isRinging) return;
+
+                const { freq, dur } = pattern[step % pattern.length];
+
+                if (freq > 0) {
+                    // Create oscillator for this beep
+                    ringOscillator = ctx.createOscillator();
+                    ringOscillator.type = 'square';
+                    ringOscillator.frequency.value = freq;
+                    ringOscillator.connect(ringGain);
+                    ringGain.gain.value = volume;
+                    ringOscillator.start();
+
+                    setTimeout(() => {
+                        if (ringOscillator) {
+                            try { ringOscillator.stop(); } catch(e) {}
+                            ringOscillator = null;
+                        }
+                        ringGain.gain.value = 0;
+                        step++;
+                        if (isRinging) {
+                            ringInterval = setTimeout(playStep, 50);
+                        }
+                    }, dur);
+                } else {
+                    // Silence
+                    ringGain.gain.value = 0;
+                    step++;
+                    if (isRinging) {
+                        ringInterval = setTimeout(playStep, dur);
+                    }
+                }
+            }
+
+            playStep();
+
+            // Auto-stop after 30 seconds
+            setTimeout(() => {
+                if (isRinging) stopRing();
+            }, 30000);
+        }
+
+        function stopRing() {
+            isRinging = false;
+
+            if (ringOscillator) {
+                try { ringOscillator.stop(); } catch(e) {}
+                ringOscillator = null;
+            }
+            if (ringGain) {
+                ringGain.gain.value = 0;
+            }
+            if (ringInterval) {
+                clearTimeout(ringInterval);
+                ringInterval = null;
+            }
+
+            stopRingBtn.classList.remove('visible');
+            statusIndicator.className = 'status-indicator listening';
+            statusLabel.textContent = 'Listening for rings...';
+        }
+
+        function updateVolume(val) {
+            volume = parseInt(val) / 100;
+            document.getElementById('volumeValue').textContent = val + '%';
+            if (ringGain) {
+                ringGain.gain.value = isRinging ? volume : 0;
+            }
+        }
+
+        // ==========================================
+        // Enable sound & start Firestore listener
+        // ==========================================
+
+        function enableSound() {
+            // Create audio context (must be from user gesture)
+            createAudioContext();
+
+            // Play a short test beep to confirm audio works
+            const ctx = audioCtx;
+            const testOsc = ctx.createOscillator();
+            const testGain = ctx.createGain();
+            testOsc.type = 'sine';
+            testOsc.frequency.value = 660;
+            testGain.gain.value = 0.3;
+            testOsc.connect(testGain);
+            testGain.connect(ctx.destination);
+            testOsc.start();
+            setTimeout(() => {
+                try { testOsc.stop(); } catch(e) {}
+            }, 150);
+
+            soundEnabled = true;
+
+            // Request notification permission
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+
+            // Update UI
+            enableSoundBtn.textContent = '✅ Sound Enabled — Listening...';
+            enableSoundBtn.classList.add('enabled');
+            enableSoundBtn.disabled = true;
+            statusIndicator.className = 'status-indicator listening';
+            statusLabel.textContent = 'Listening for rings...';
+            statusMessage.textContent = 'You will hear a loud ringtone when someone visits or rings';
+
+            // Start listening to Firestore
+            startListening();
+        }
+
+        function startListening() {
+            if (unsubscribeRings) unsubscribeRings();
+
+            // Set the "start time" to now — only alert on NEW rings after this point
+            lastProcessedTimestamp = new Date();
+
+            unsubscribeRings = db.collection('rings')
+                .where('status', '==', 'pending')
+                .orderBy('timestamp', 'asc')
+                .onSnapshot(
+                    (snapshot) => {
+                        snapshot.docChanges().forEach((change) => {
+                            if (change.type === 'added') {
+                                const data = change.doc.data();
+
+                                // Skip rings that were created before we started listening
+                                if (data.timestamp && data.timestamp.toDate) {
+                                    const ringTime = data.timestamp.toDate();
+                                    if (ringTime < lastProcessedTimestamp) return;
+                                }
+
+                                handleNewRing(data, change.doc.id);
+                            }
+                        });
+                    },
+                    (error) => {
+                        console.error('Firestore rings listener error:', error);
+                        statusMessage.textContent = '⚠️ Connection lost — trying to reconnect...';
+                        setTimeout(() => startListening(), 3000);
+                    }
+                );
+        }
+
+        function handleNewRing(data, docId) {
+            ringCount++;
+            ringCountEl.textContent = ringCount;
+
+            const icon = data.type === 'message' ? '💬' : (data.type === 'auto' ? '👋' : '🔔');
+            const message = data.message || 'Someone rang your phone!';
+            const timeStr = data.timeStr || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+            // Add to log
+            addLogEntry(icon, message, timeStr);
+
+            // Play ringtone (only for manual rings and messages, not auto page opens)
+            if (soundEnabled && data.type !== 'auto') {
+                startRingtone();
+                stopRingBtn.classList.add('visible');
+                statusIndicator.className = 'status-indicator ringing';
+                statusLabel.textContent = '🔔 RINGING!';
+                statusMessage.textContent = message;
+            } else if (soundEnabled && data.type === 'auto') {
+                // Just a short beep for auto page visits
+                playShortBeep();
+                statusMessage.textContent = message;
+            }
+
+            // Browser notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    new Notification('MyLifeCall', {
+                        body: message,
+                        icon: '📱',
+                        tag: 'mylifecall-ring-' + docId,
+                        requireInteraction: data.type !== 'auto'
+                    });
+                } catch (e) {
+                    console.warn('Notification failed:', e);
+                }
+            }
+
+            // Mark as received in Firestore
+            db.collection('rings').doc(docId).update({ status: 'received' }).catch(() => {});
+        }
+
+        function playShortBeep() {
+            if (!audioCtx) return;
+            const ctx = audioCtx;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = 520;
+            gain.gain.value = volume * 0.4;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            setTimeout(() => {
+                try { osc.stop(); } catch(e) {}
+            }, 200);
+        }
+
+        function addLogEntry(icon, message, timeStr) {
+            if (logEmpty) logEmpty.remove();
+
+            const li = document.createElement('li');
+            li.className = 'log-item';
+            li.innerHTML = `
+                <span class="log-icon">${icon}</span>
+                <div>
+                    <div class="log-text">${escapeHtml(message)}</div>
+                    <div class="log-time">${escapeHtml(timeStr)}</div>
+                </div>
+            `;
+
+            logList.insertBefore(li, logList.firstChild);
+
+            // Keep only last 50 entries
+            while (logList.children.length > 50) {
+                logList.removeChild(logList.lastChild);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ==========================================
+        // Quick Reply
+        // ==========================================
+
+        async function sendReply() {
+            if (isSendingReply) return;
+            const text = replyInput.value.trim();
+            if (!text) return;
+
+            isSendingReply = true;
+            replySendBtn.disabled = true;
+            replyInput.disabled = true;
+
+            const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+            try {
+                await db.collection('messages').add({
+                    text: text.slice(0, 500),
+                    timeStr: timeStr,
+                    type: 'received',
+                    sender: 'Basit',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                replyInput.value = '';
+                addLogEntry('✅', 'Reply sent: ' + text.slice(0, 80), timeStr);
+            } catch (error) {
+                console.error('Reply failed:', error);
+                addLogEntry('❌', 'Reply failed — check connection', timeStr);
+            } finally {
+                isSendingReply = false;
+                replyInput.disabled = false;
+                replySendBtn.disabled = replyInput.value.trim().length === 0;
+                replyInput.focus();
+            }
+        }
+
+        // ==========================================
+        // Keep-alive: prevent page from sleeping
+        // ==========================================
+
+        // Periodically touch audio context to keep it alive
+        setInterval(() => {
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume().catch(() => {});
+            }
+        }, 30000);
+
+        // Wake lock API (keeps screen on) — optional, best-effort
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    await navigator.wakeLock.request('screen');
+                }
+            } catch (e) {
+                // Wake lock not supported or denied — that's fine
+            }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                requestWakeLock();
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume().catch(() => {});
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
