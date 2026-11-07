@@ -3,9 +3,9 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>MyLifeCall — Receiver</title>
-    <meta name="description" content="Keep this page open on your phone to receive ring alerts and messages.">
+    <meta name="description" content="Receive ring alerts — rings even on silent mode, like ntfy app.">
     <meta name="theme-color" content="#6c5ce7">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -56,12 +56,12 @@
         /* Header */
         .header {
             text-align: center;
-            padding: 30px 0 20px;
+            padding: 24px 0 16px;
         }
 
         .header h1 {
             font-family: 'Outfit', sans-serif;
-            font-size: 1.6rem;
+            font-size: 1.5rem;
             font-weight: 700;
             background: linear-gradient(135deg, var(--primary-light), var(--success));
             -webkit-background-clip: text;
@@ -71,7 +71,7 @@
 
         .header p {
             color: var(--text-dim);
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             margin-top: 6px;
         }
 
@@ -80,8 +80,8 @@
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 16px;
-            padding: 24px;
-            margin: 16px 0;
+            padding: 20px;
+            margin: 12px 0;
             text-align: center;
         }
 
@@ -91,22 +91,15 @@
             gap: 8px;
             padding: 8px 20px;
             border-radius: 50px;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             font-weight: 600;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
         .status-indicator.listening {
             background: rgba(0, 206, 201, 0.15);
             color: var(--success);
             border: 1px solid rgba(0, 206, 201, 0.3);
-        }
-
-        .status-indicator.ringing {
-            background: rgba(255, 107, 107, 0.15);
-            color: var(--danger);
-            border: 1px solid rgba(255, 107, 107, 0.3);
-            animation: pulse-ring 0.6s ease-in-out infinite alternate;
         }
 
         .status-indicator.stopped {
@@ -126,37 +119,28 @@
             animation: blink 2s ease-in-out infinite;
         }
 
-        .status-indicator.ringing .status-dot {
-            animation: blink 0.4s ease-in-out infinite;
-        }
-
         @keyframes blink {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
         }
 
-        @keyframes pulse-ring {
-            from { transform: scale(1); }
-            to { transform: scale(1.05); }
-        }
-
         .status-message {
             color: var(--text-dim);
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             margin-top: 8px;
         }
 
         .ring-count {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 800;
             font-family: 'Outfit', sans-serif;
             color: var(--primary-light);
-            margin: 8px 0 4px;
+            margin: 6px 0 4px;
         }
 
         .ring-label {
             color: var(--text-dim);
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             text-transform: uppercase;
             letter-spacing: 1.5px;
         }
@@ -173,7 +157,7 @@
             font-weight: 700;
             border-radius: 14px;
             cursor: pointer;
-            margin: 16px 0;
+            margin: 14px 0;
             transition: all 0.3s ease;
             font-family: 'Inter', sans-serif;
         }
@@ -194,176 +178,106 @@
             transform: none;
         }
 
-        /* Stop Ring Button */
-        .stop-ring-btn {
-            display: none;
-            width: 100%;
-            padding: 18px;
-            border: 2px solid var(--danger);
-            background: linear-gradient(135deg, var(--danger), #e55555);
-            color: white;
-            font-size: 1.1rem;
-            font-weight: 800;
-            border-radius: 14px;
-            cursor: pointer;
-            margin: 16px 0;
-            font-family: 'Inter', sans-serif;
-            animation: pulse-ring 0.5s ease-in-out infinite alternate;
-        }
-
-        .stop-ring-btn.visible {
-            display: block;
-        }
-
-        /* Ring Log */
-        .log-card {
+        /* Settings */
+        .settings-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 16px;
             padding: 16px;
-            margin: 16px 0;
+            margin: 12px 0;
         }
 
-        .log-title {
-            font-size: 0.8rem;
+        .settings-title {
+            font-size: 0.78rem;
             color: var(--text-dim);
             text-transform: uppercase;
             letter-spacing: 1.5px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             padding-bottom: 8px;
             border-bottom: 1px solid var(--border);
         }
 
-        .log-list {
-            list-style: none;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .log-item {
+        .setting-row {
             display: flex;
-            align-items: flex-start;
-            gap: 10px;
+            justify-content: space-between;
+            align-items: center;
             padding: 10px 0;
-            border-bottom: 1px solid rgba(42, 42, 74, 0.5);
-            animation: fadeIn 0.3s ease;
         }
 
-        .log-item:last-child { border-bottom: none; }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-5px); }
-            to { opacity: 1; transform: translateY(0); }
+        .setting-row + .setting-row {
+            border-top: 1px solid rgba(42, 42, 74, 0.5);
         }
 
-        .log-icon {
-            font-size: 1.2rem;
-            flex-shrink: 0;
-            margin-top: 2px;
-        }
-
-        .log-text {
-            font-size: 0.85rem;
-            color: var(--text);
-            line-height: 1.4;
-        }
-
-        .log-time {
-            font-size: 0.7rem;
-            color: var(--text-dim);
-            margin-top: 2px;
-        }
-
-        .log-empty {
-            text-align: center;
-            color: var(--text-dim);
-            font-size: 0.8rem;
-            padding: 20px 0;
-        }
-
-        /* Reply Section */
-        .reply-section {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 16px;
-            margin: 16px 0;
-        }
-
-        .reply-title {
-            font-size: 0.8rem;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            margin-bottom: 12px;
-        }
-
-        .reply-input-wrapper {
-            display: flex;
-            gap: 8px;
-        }
-
-        .reply-input {
+        .setting-info {
             flex: 1;
-            padding: 12px 16px;
-            border: 1px solid var(--border);
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text);
-            border-radius: 12px;
-            font-size: 0.9rem;
-            font-family: 'Inter', sans-serif;
-            outline: none;
-            transition: border-color 0.3s;
         }
 
-        .reply-input:focus {
-            border-color: var(--primary);
-        }
-
-        .reply-send-btn {
-            padding: 12px 20px;
-            background: linear-gradient(135deg, var(--primary), #5a4bd1);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 0.9rem;
+        .setting-name {
+            font-size: 0.88rem;
             font-weight: 600;
-            cursor: pointer;
-            font-family: 'Inter', sans-serif;
-            transition: all 0.3s;
-            white-space: nowrap;
+            color: var(--text);
         }
 
-        .reply-send-btn:hover:not(:disabled) {
-            transform: translateY(-1px);
-        }
-
-        .reply-send-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* Footer */
-        .footer {
-            text-align: center;
-            padding: 24px 0;
+        .setting-desc {
+            font-size: 0.72rem;
             color: var(--text-dim);
-            font-size: 0.7rem;
+            margin-top: 2px;
+        }
+
+        /* Toggle Switch */
+        .toggle {
+            position: relative;
+            width: 48px;
+            height: 26px;
+            flex-shrink: 0;
+            margin-left: 12px;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--border);
+            border-radius: 26px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .toggle input:checked + .toggle-slider {
+            background: var(--primary);
+        }
+
+        .toggle input:checked + .toggle-slider::before {
+            transform: translateX(22px);
         }
 
         /* Volume Control */
         .volume-control {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-top: 16px;
-            padding: 12px 16px;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 12px;
+            gap: 10px;
+            padding: 10px 0;
         }
 
         .volume-label {
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             color: var(--text-dim);
             white-space: nowrap;
         }
@@ -380,7 +294,6 @@
 
         .volume-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
-            appearance: none;
             width: 18px;
             height: 18px;
             background: var(--primary);
@@ -389,17 +302,242 @@
         }
 
         .volume-value {
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             color: var(--text-dim);
             min-width: 36px;
             text-align: right;
         }
 
-        /* Responsive */
+        /* Reply Section */
+        .reply-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 12px 0;
+        }
+
+        .reply-title {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 10px;
+        }
+
+        .reply-input-wrapper {
+            display: flex;
+            gap: 8px;
+        }
+
+        .reply-input {
+            flex: 1;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            border-radius: 12px;
+            font-size: 0.88rem;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .reply-input:focus { border-color: var(--primary); }
+
+        .reply-send-btn {
+            padding: 12px 18px;
+            background: linear-gradient(135deg, var(--primary), #5a4bd1);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            white-space: nowrap;
+        }
+
+        .reply-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Ring Log */
+        .log-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 12px 0;
+        }
+
+        .log-title {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .log-list {
+            list-style: none;
+            max-height: 260px;
+            overflow-y: auto;
+        }
+
+        .log-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 9px 0;
+            border-bottom: 1px solid rgba(42, 42, 74, 0.5);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .log-item:last-child { border-bottom: none; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
+        .log-text { font-size: 0.82rem; color: var(--text); line-height: 1.4; }
+        .log-time { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+
+        .log-empty {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            padding: 20px 0;
+        }
+
+        /* ==========================================
+           FULL-SCREEN RING OVERLAY
+           Like ntfy — covers everything, impossible to miss
+           ========================================== */
+        .ring-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: linear-gradient(135deg, #1a0a2e, #0a0a1a);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .ring-overlay.active {
+            display: flex;
+        }
+
+        .ring-overlay-bg {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(255, 107, 107, 0.15) 0%, transparent 70%);
+            animation: ring-bg-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes ring-bg-pulse {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+
+        .ring-overlay-icon {
+            position: relative;
+            z-index: 1;
+            font-size: 5rem;
+            animation: ring-shake 0.3s ease-in-out infinite alternate;
+            margin-bottom: 20px;
+        }
+
+        @keyframes ring-shake {
+            0% { transform: rotate(-15deg); }
+            100% { transform: rotate(15deg); }
+        }
+
+        .ring-overlay-title {
+            position: relative;
+            z-index: 1;
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 8px;
+        }
+
+        .ring-overlay-message {
+            position: relative;
+            z-index: 1;
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 10px;
+            max-width: 320px;
+            line-height: 1.5;
+        }
+
+        .ring-overlay-time {
+            position: relative;
+            z-index: 1;
+            font-size: 0.82rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 40px;
+        }
+
+        .ring-overlay-stop-btn {
+            position: relative;
+            z-index: 1;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: 4px solid var(--danger);
+            background: rgba(255, 107, 107, 0.2);
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 800;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            animation: stop-btn-pulse 1s ease-in-out infinite alternate;
+            transition: all 0.2s;
+        }
+
+        .ring-overlay-stop-btn:active {
+            transform: scale(0.95);
+            background: rgba(255, 107, 107, 0.5);
+        }
+
+        @keyframes stop-btn-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.5); }
+            100% { box-shadow: 0 0 0 20px rgba(255, 107, 107, 0); }
+        }
+
+        .ring-overlay-stop-icon {
+            font-size: 2.5rem;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 20px 0;
+            color: var(--text-dim);
+            font-size: 0.68rem;
+        }
+
         @media (max-width: 400px) {
-            body { padding: 12px; }
-            .header h1 { font-size: 1.3rem; }
-            .ring-count { font-size: 2rem; }
+            body { padding: 10px; }
+            .header h1 { font-size: 1.25rem; }
+            .ring-count { font-size: 1.8rem; }
+            .ring-overlay-icon { font-size: 4rem; }
+            .ring-overlay-title { font-size: 1.6rem; }
+            .ring-overlay-stop-btn { width: 160px; height: 160px; font-size: 1rem; }
+            .ring-overlay-stop-icon { font-size: 2rem; }
         }
     </style>
 </head>
@@ -408,13 +546,13 @@
     <div class="container">
         <div class="header">
             <h1>📱 MyLifeCall Receiver</h1>
-            <p>Keep this page open to receive ring alerts</p>
+            <p>Rings loud even on silent mode — like ntfy app</p>
         </div>
 
         <div class="status-card">
             <div class="status-indicator stopped" id="statusIndicator">
                 <span class="status-dot"></span>
-                <span id="statusLabel">Tap "Enable Sound" to start</span>
+                <span id="statusLabel">Tap below to start</span>
             </div>
             <div class="ring-count" id="ringCount">0</div>
             <div class="ring-label">Rings Received</div>
@@ -425,11 +563,65 @@
             🔊 Enable Sound & Start Listening
         </button>
 
-        <button class="stop-ring-btn" id="stopRingBtn" onclick="stopRing()">
-            🔇 STOP RINGING
-        </button>
+        <!-- Settings like ntfy app -->
+        <div class="settings-card">
+            <div class="settings-title">⚙️ Ring Settings</div>
 
-        <div class="status-card">
+            <div class="setting-row">
+                <div class="setting-info">
+                    <div class="setting-name">🔇 Override Silent Mode</div>
+                    <div class="setting-desc">Ring even when phone is on silent/vibrate</div>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="overrideSilent" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <div class="setting-name">🔁 Ring Until Stopped</div>
+                    <div class="setting-desc">Keep ringing until you tap STOP (like a phone call)</div>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="ringUntilStopped" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <div class="setting-name">📳 Vibrate</div>
+                    <div class="setting-desc">Vibrate phone when ringing</div>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="vibrateEnabled" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <div class="setting-name">🖥️ Full Screen Alert</div>
+                    <div class="setting-desc">Show full screen overlay when ringing</div>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="fullScreenAlert" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-info">
+                    <div class="setting-name">👋 Alert on Page Visit</div>
+                    <div class="setting-desc">Short beep when someone opens your page</div>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="alertOnVisit" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
             <div class="volume-control">
                 <span class="volume-label">🔊 Volume</span>
                 <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" oninput="updateVolume(this.value)">
@@ -439,7 +631,7 @@
 
         <!-- Reply Section -->
         <div class="reply-section">
-            <div class="reply-title">Quick Reply</div>
+            <div class="reply-title">💬 Quick Reply</div>
             <div class="reply-input-wrapper">
                 <input type="text" class="reply-input" id="replyInput" placeholder="Type a reply..." maxlength="500" autocomplete="off">
                 <button class="reply-send-btn" id="replySendBtn" onclick="sendReply()" disabled>Send</button>
@@ -447,20 +639,43 @@
         </div>
 
         <div class="log-card">
-            <div class="log-title">Recent Activity</div>
+            <div class="log-title">📋 Recent Activity</div>
             <ul class="log-list" id="logList">
                 <li class="log-empty" id="logEmpty">No rings yet — waiting for visitors...</li>
             </ul>
         </div>
 
         <div class="footer">
-            <p>© 2026 MyLifeCall — Keep this tab open for alerts</p>
-            <p style="margin-top: 4px;">💡 Add to Home Screen for best experience</p>
+            <p>© 2026 MyLifeCall — Rings even on silent mode</p>
+            <p style="margin-top: 4px;">💡 Add to Home Screen: Chrome menu ⋮ → "Add to Home screen"</p>
         </div>
     </div>
 
+    <!-- FULL SCREEN RING OVERLAY — like ntfy incoming call screen -->
+    <div class="ring-overlay" id="ringOverlay">
+        <div class="ring-overlay-bg"></div>
+        <div class="ring-overlay-icon">📞</div>
+        <div class="ring-overlay-title" id="ringOverlayTitle">MyLifeCall!</div>
+        <div class="ring-overlay-message" id="ringOverlayMessage">Someone is trying to reach you!</div>
+        <div class="ring-overlay-time" id="ringOverlayTime"></div>
+        <button class="ring-overlay-stop-btn" onclick="stopRing()">
+            <span class="ring-overlay-stop-icon">🔇</span>
+            <span>STOP</span>
+        </button>
+    </div>
+
+    <!--
+        Hidden audio element for override-silent-mode trick.
+        On Android Chrome, an <audio> element that has been "unlocked" by a user gesture
+        can play at media volume (which is separate from ringer volume).
+        We generate a ringtone as a WAV data URI and play it through this element.
+    -->
+    <audio id="ringtoneAudio" loop playsinline></audio>
+
     <script>
-        // Firebase Configuration (same as main site)
+        // ==========================================
+        // Firebase
+        // ==========================================
         const firebaseConfig = {
             apiKey: "AIzaSyCpMlfNxaKSOnyUokMaxSkxJ2r9mDKyLA4",
             authDomain: "mylifecall-chat.firebaseapp.com",
@@ -473,43 +688,175 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
+        // ==========================================
         // State
+        // ==========================================
         let audioCtx = null;
         let soundEnabled = false;
         let isRinging = false;
-        let ringOscillator = null;
-        let ringGain = null;
-        let ringInterval = null;
         let ringCount = 0;
         let volume = 1.0;
         let unsubscribeRings = null;
         let lastProcessedTimestamp = null;
         let isSendingReply = false;
+        let vibrationInterval = null;
+        let ringAudioLoop = null;
 
+        // DOM
         const statusIndicator = document.getElementById('statusIndicator');
         const statusLabel = document.getElementById('statusLabel');
         const statusMessage = document.getElementById('statusMessage');
         const ringCountEl = document.getElementById('ringCount');
         const enableSoundBtn = document.getElementById('enableSoundBtn');
-        const stopRingBtn = document.getElementById('stopRingBtn');
         const logList = document.getElementById('logList');
         const logEmpty = document.getElementById('logEmpty');
         const replyInput = document.getElementById('replyInput');
         const replySendBtn = document.getElementById('replySendBtn');
+        const ringOverlay = document.getElementById('ringOverlay');
+        const ringOverlayTitle = document.getElementById('ringOverlayTitle');
+        const ringOverlayMessage = document.getElementById('ringOverlayMessage');
+        const ringOverlayTime = document.getElementById('ringOverlayTime');
+        const ringtoneAudio = document.getElementById('ringtoneAudio');
+
+        // Settings toggles
+        const overrideSilentToggle = document.getElementById('overrideSilent');
+        const ringUntilStoppedToggle = document.getElementById('ringUntilStopped');
+        const vibrateEnabledToggle = document.getElementById('vibrateEnabled');
+        const fullScreenAlertToggle = document.getElementById('fullScreenAlert');
+        const alertOnVisitToggle = document.getElementById('alertOnVisit');
+
+        // Load saved settings
+        loadSettings();
 
         replyInput.addEventListener('input', () => {
             replySendBtn.disabled = isSendingReply || replyInput.value.trim().length === 0;
         });
-
         replyInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.isComposing) {
-                e.preventDefault();
-                sendReply();
-            }
+            if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sendReply(); }
         });
 
+        // Save settings when changed
+        [overrideSilentToggle, ringUntilStoppedToggle, vibrateEnabledToggle, fullScreenAlertToggle, alertOnVisitToggle].forEach(toggle => {
+            toggle.addEventListener('change', saveSettings);
+        });
+
+        function saveSettings() {
+            try {
+                localStorage.setItem('mylifecall-receiver-settings', JSON.stringify({
+                    overrideSilent: overrideSilentToggle.checked,
+                    ringUntilStopped: ringUntilStoppedToggle.checked,
+                    vibrateEnabled: vibrateEnabledToggle.checked,
+                    fullScreenAlert: fullScreenAlertToggle.checked,
+                    alertOnVisit: alertOnVisitToggle.checked,
+                    volume: document.getElementById('volumeSlider').value
+                }));
+            } catch(e) {}
+        }
+
+        function loadSettings() {
+            try {
+                const s = JSON.parse(localStorage.getItem('mylifecall-receiver-settings'));
+                if (!s) return;
+                overrideSilentToggle.checked = s.overrideSilent !== false;
+                ringUntilStoppedToggle.checked = s.ringUntilStopped !== false;
+                vibrateEnabledToggle.checked = s.vibrateEnabled !== false;
+                fullScreenAlertToggle.checked = s.fullScreenAlert !== false;
+                alertOnVisitToggle.checked = s.alertOnVisit !== false;
+                if (s.volume) {
+                    document.getElementById('volumeSlider').value = s.volume;
+                    document.getElementById('volumeValue').textContent = s.volume + '%';
+                    volume = parseInt(s.volume) / 100;
+                }
+            } catch(e) {}
+        }
+
         // ==========================================
-        // Audio: Generate ringtone using Web Audio API
+        // Generate a loud ringtone as a WAV data URI
+        // This plays through the MEDIA channel on Android,
+        // bypassing silent/vibrate mode (ringer channel).
+        // ==========================================
+
+        function generateRingtoneWav() {
+            const sampleRate = 44100;
+            const duration = 4; // 4-second loop
+            const numSamples = sampleRate * duration;
+            const buffer = new Float32Array(numSamples);
+
+            for (let i = 0; i < numSamples; i++) {
+                const t = i / sampleRate;
+                const loopPos = t % 2; // 2-second pattern repeating
+
+                let sample = 0;
+
+                if (loopPos < 0.25) {
+                    // High-pitched ring tone (880 Hz)
+                    sample = Math.sin(2 * Math.PI * 880 * t) * 0.7;
+                    sample += Math.sin(2 * Math.PI * 1108 * t) * 0.3; // Harmonic
+                } else if (loopPos < 0.35) {
+                    // Short silence
+                    sample = 0;
+                } else if (loopPos < 0.6) {
+                    // Higher ring tone (1046 Hz)
+                    sample = Math.sin(2 * Math.PI * 1046 * t) * 0.7;
+                    sample += Math.sin(2 * Math.PI * 1318 * t) * 0.3;
+                } else if (loopPos < 0.7) {
+                    // Short silence
+                    sample = 0;
+                } else if (loopPos < 0.95) {
+                    // Urgent alternating tone
+                    const altFreq = (Math.floor(t * 8) % 2 === 0) ? 880 : 1046;
+                    sample = Math.sin(2 * Math.PI * altFreq * t) * 0.8;
+                } else {
+                    // Pause before next ring cycle
+                    sample = 0;
+                }
+
+                buffer[i] = sample;
+            }
+
+            // Encode as WAV
+            const numChannels = 1;
+            const bitsPerSample = 16;
+            const byteRate = sampleRate * numChannels * bitsPerSample / 8;
+            const blockAlign = numChannels * bitsPerSample / 8;
+            const dataSize = numSamples * blockAlign;
+            const headerSize = 44;
+            const wavBuffer = new ArrayBuffer(headerSize + dataSize);
+            const view = new DataView(wavBuffer);
+
+            function writeString(offset, str) {
+                for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+            }
+
+            writeString(0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(8, 'WAVE');
+            writeString(12, 'fmt ');
+            view.setUint32(16, 16, true); // PCM
+            view.setUint16(20, 1, true);  // PCM format
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitsPerSample, true);
+            writeString(36, 'data');
+            view.setUint32(40, dataSize, true);
+
+            // Write samples
+            let offset = 44;
+            for (let i = 0; i < numSamples; i++) {
+                const s = Math.max(-1, Math.min(1, buffer[i]));
+                const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                view.setInt16(offset, val, true);
+                offset += 2;
+            }
+
+            const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+            return URL.createObjectURL(blob);
+        }
+
+        // ==========================================
+        // Audio Context (Web Audio API backup)
         // ==========================================
 
         function createAudioContext() {
@@ -522,108 +869,203 @@
             return audioCtx;
         }
 
-        function startRingtone() {
+        // ==========================================
+        // START RINGING — loud, persistent, like ntfy
+        // ==========================================
+
+        function startRinging(message, timeStr) {
             if (isRinging) return;
             isRinging = true;
 
-            const ctx = createAudioContext();
-            ringGain = ctx.createGain();
-            ringGain.gain.value = 0;
-            ringGain.connect(ctx.destination);
+            const useOverrideSilent = overrideSilentToggle.checked;
+            const useRingUntilStopped = ringUntilStoppedToggle.checked;
+            const useVibrate = vibrateEnabledToggle.checked;
+            const useFullScreen = fullScreenAlertToggle.checked;
 
-            // Ring pattern: beep-beep, pause, beep-beep, pause...
+            // === METHOD 1: HTML Audio element (bypasses silent mode on Android) ===
+            if (useOverrideSilent) {
+                try {
+                    const wavUrl = generateRingtoneWav();
+                    ringtoneAudio.src = wavUrl;
+                    ringtoneAudio.loop = true;
+                    ringtoneAudio.volume = volume;
+                    ringtoneAudio.play().catch(e => {
+                        console.warn('Audio element play failed, using Web Audio API fallback:', e);
+                        startWebAudioRingtone();
+                    });
+                } catch(e) {
+                    console.warn('WAV generation failed, using Web Audio API:', e);
+                    startWebAudioRingtone();
+                }
+            } else {
+                // Standard Web Audio API (respects system volume/silent)
+                startWebAudioRingtone();
+            }
+
+            // === VIBRATION (continuous pattern) ===
+            if (useVibrate && 'vibrate' in navigator) {
+                // Vibrate pattern: 500ms vibrate, 300ms pause, repeat
+                vibrationInterval = setInterval(() => {
+                    if (isRinging) {
+                        navigator.vibrate([500, 300, 500, 300, 500, 1000]);
+                    }
+                }, 3000);
+                navigator.vibrate([500, 300, 500, 300, 500, 1000]); // Start immediately
+            }
+
+            // === FULL SCREEN OVERLAY ===
+            if (useFullScreen) {
+                ringOverlayMessage.textContent = message || 'Someone is trying to reach you!';
+                ringOverlayTime.textContent = timeStr || '';
+                ringOverlay.classList.add('active');
+            }
+
+            // === AUTO-STOP if "Ring Until Stopped" is OFF ===
+            if (!useRingUntilStopped) {
+                setTimeout(() => {
+                    if (isRinging) stopRing();
+                }, 5000); // Ring once for 5 seconds then stop
+            }
+            // If "Ring Until Stopped" is ON — rings forever until user taps STOP
+        }
+
+        function startWebAudioRingtone() {
+            const ctx = createAudioContext();
+            const gainNode = ctx.createGain();
+            gainNode.gain.value = 0;
+            gainNode.connect(ctx.destination);
+
             let step = 0;
             const pattern = [
-                { freq: 880, dur: 200 },   // High beep
-                { freq: 0, dur: 100 },       // Short pause
-                { freq: 880, dur: 200 },   // High beep
-                { freq: 0, dur: 600 },       // Long pause
-                { freq: 1046, dur: 200 },  // Higher beep
-                { freq: 0, dur: 100 },       // Short pause
-                { freq: 1046, dur: 200 },  // Higher beep
-                { freq: 0, dur: 800 },       // Long pause
+                { freq: 880, dur: 250 },
+                { freq: 0, dur: 100 },
+                { freq: 880, dur: 250 },
+                { freq: 0, dur: 150 },
+                { freq: 1046, dur: 250 },
+                { freq: 0, dur: 100 },
+                { freq: 1046, dur: 250 },
+                { freq: 0, dur: 600 },
             ];
 
+            let currentOsc = null;
+
             function playStep() {
-                if (!isRinging) return;
+                if (!isRinging) {
+                    gainNode.gain.value = 0;
+                    return;
+                }
 
                 const { freq, dur } = pattern[step % pattern.length];
 
                 if (freq > 0) {
-                    // Create oscillator for this beep
-                    ringOscillator = ctx.createOscillator();
-                    ringOscillator.type = 'square';
-                    ringOscillator.frequency.value = freq;
-                    ringOscillator.connect(ringGain);
-                    ringGain.gain.value = volume;
-                    ringOscillator.start();
+                    currentOsc = ctx.createOscillator();
+                    currentOsc.type = 'square';
+                    currentOsc.frequency.value = freq;
+                    currentOsc.connect(gainNode);
+                    gainNode.gain.value = volume;
+                    currentOsc.start();
 
                     setTimeout(() => {
-                        if (ringOscillator) {
-                            try { ringOscillator.stop(); } catch(e) {}
-                            ringOscillator = null;
-                        }
-                        ringGain.gain.value = 0;
+                        if (currentOsc) { try { currentOsc.stop(); } catch(e) {} currentOsc = null; }
+                        gainNode.gain.value = 0;
                         step++;
-                        if (isRinging) {
-                            ringInterval = setTimeout(playStep, 50);
-                        }
+                        if (isRinging) ringAudioLoop = setTimeout(playStep, 50);
                     }, dur);
                 } else {
-                    // Silence
-                    ringGain.gain.value = 0;
+                    gainNode.gain.value = 0;
                     step++;
-                    if (isRinging) {
-                        ringInterval = setTimeout(playStep, dur);
-                    }
+                    if (isRinging) ringAudioLoop = setTimeout(playStep, dur);
                 }
             }
 
             playStep();
-
-            // Auto-stop after 30 seconds
-            setTimeout(() => {
-                if (isRinging) stopRing();
-            }, 30000);
         }
+
+        // ==========================================
+        // STOP RINGING
+        // ==========================================
 
         function stopRing() {
             isRinging = false;
 
-            if (ringOscillator) {
-                try { ringOscillator.stop(); } catch(e) {}
-                ringOscillator = null;
-            }
-            if (ringGain) {
-                ringGain.gain.value = 0;
-            }
-            if (ringInterval) {
-                clearTimeout(ringInterval);
-                ringInterval = null;
-            }
+            // Stop HTML audio
+            try {
+                ringtoneAudio.pause();
+                ringtoneAudio.currentTime = 0;
+                ringtoneAudio.src = '';
+            } catch(e) {}
 
-            stopRingBtn.classList.remove('visible');
-            statusIndicator.className = 'status-indicator listening';
-            statusLabel.textContent = 'Listening for rings...';
+            // Stop Web Audio API loop
+            if (ringAudioLoop) { clearTimeout(ringAudioLoop); ringAudioLoop = null; }
+
+            // Stop vibration
+            if (vibrationInterval) { clearInterval(vibrationInterval); vibrationInterval = null; }
+            try { navigator.vibrate(0); } catch(e) {}
+
+            // Hide overlay
+            ringOverlay.classList.remove('active');
+
+            // Reset status
+            if (soundEnabled) {
+                statusIndicator.className = 'status-indicator listening';
+                statusLabel.textContent = 'Listening for rings...';
+                statusMessage.textContent = 'Waiting for next ring...';
+            }
         }
 
         function updateVolume(val) {
             volume = parseInt(val) / 100;
             document.getElementById('volumeValue').textContent = val + '%';
-            if (ringGain) {
-                ringGain.gain.value = isRinging ? volume : 0;
+            ringtoneAudio.volume = volume;
+            saveSettings();
+        }
+
+        // ==========================================
+        // Short beep for page visits
+        // ==========================================
+
+        function playShortBeep() {
+            if (!audioCtx) return;
+            try {
+                const ctx = audioCtx;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = 520;
+                gain.gain.value = volume * 0.4;
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                setTimeout(() => { try { osc.stop(); } catch(e) {} }, 250);
+            } catch(e) {}
+
+            // Also short vibration
+            if (vibrateEnabledToggle.checked && 'vibrate' in navigator) {
+                navigator.vibrate(200);
             }
         }
 
         // ==========================================
-        // Enable sound & start Firestore listener
+        // Enable Sound (MUST be called from user tap)
         // ==========================================
 
         function enableSound() {
-            // Create audio context (must be from user gesture)
+            // Create audio context (requires user gesture)
             createAudioContext();
 
-            // Play a short test beep to confirm audio works
+            // "Unlock" the HTML audio element with a silent play (Android requirement)
+            ringtoneAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+            ringtoneAudio.volume = 0.01;
+            ringtoneAudio.play().then(() => {
+                ringtoneAudio.pause();
+                ringtoneAudio.currentTime = 0;
+                ringtoneAudio.volume = volume;
+                console.log('Audio element unlocked for silent mode override.');
+            }).catch(e => {
+                console.warn('Could not unlock audio element:', e);
+            });
+
+            // Test beep
             const ctx = audioCtx;
             const testOsc = ctx.createOscillator();
             const testGain = ctx.createGain();
@@ -633,9 +1075,12 @@
             testOsc.connect(testGain);
             testGain.connect(ctx.destination);
             testOsc.start();
-            setTimeout(() => {
-                try { testOsc.stop(); } catch(e) {}
-            }, 150);
+            setTimeout(() => { try { testOsc.stop(); } catch(e) {} }, 150);
+
+            // Short vibration test
+            if (vibrateEnabledToggle.checked && 'vibrate' in navigator) {
+                navigator.vibrate(100);
+            }
 
             soundEnabled = true;
 
@@ -650,20 +1095,24 @@
             enableSoundBtn.disabled = true;
             statusIndicator.className = 'status-indicator listening';
             statusLabel.textContent = 'Listening for rings...';
-            statusMessage.textContent = 'You will hear a loud ringtone when someone visits or rings';
+            statusMessage.textContent = 'Will ring loud even on silent mode';
 
-            // Start listening to Firestore
+            // Start listening
             startListening();
+
+            // Request wake lock
+            requestWakeLock();
         }
+
+        // ==========================================
+        // Firestore Listener
+        // ==========================================
 
         function startListening() {
             if (unsubscribeRings) unsubscribeRings();
 
-            // Set the "start time" to now — only alert on NEW rings after this point
             lastProcessedTimestamp = new Date();
 
-            // Listen for new pending rings.
-            // Using only orderBy (no compound where+orderBy) to avoid needing a composite index.
             unsubscribeRings = db.collection('rings')
                 .orderBy('timestamp', 'asc')
                 .onSnapshot(
@@ -672,10 +1121,10 @@
                             if (change.type === 'added') {
                                 const data = change.doc.data();
 
-                                // Only process pending rings (filter in code, no composite index needed)
+                                // Only process pending rings
                                 if (data.status !== 'pending') return;
 
-                                // Skip rings that were created before we started listening
+                                // Skip old rings
                                 if (data.timestamp && data.timestamp.toDate) {
                                     const ringTime = data.timestamp.toDate();
                                     if (ringTime < lastProcessedTimestamp) return;
@@ -686,8 +1135,8 @@
                         });
                     },
                     (error) => {
-                        console.error('Firestore rings listener error:', error);
-                        statusMessage.textContent = '⚠️ Connection lost — trying to reconnect...';
+                        console.error('Firestore listener error:', error);
+                        statusMessage.textContent = '⚠️ Connection lost — reconnecting...';
                         setTimeout(() => startListening(), 3000);
                     }
                 );
@@ -704,17 +1153,17 @@
             // Add to log
             addLogEntry(icon, message, timeStr);
 
-            // Play ringtone (only for manual rings and messages, not auto page opens)
-            if (soundEnabled && data.type !== 'auto') {
-                startRingtone();
-                stopRingBtn.classList.add('visible');
-                statusIndicator.className = 'status-indicator ringing';
-                statusLabel.textContent = '🔔 RINGING!';
+            if (data.type === 'auto') {
+                // Page visit — short beep if setting is on
+                if (alertOnVisitToggle.checked) {
+                    playShortBeep();
+                }
                 statusMessage.textContent = message;
-            } else if (soundEnabled && data.type === 'auto') {
-                // Just a short beep for auto page visits
-                playShortBeep();
-                statusMessage.textContent = message;
+            } else {
+                // Manual ring or message — LOUD RINGING
+                if (soundEnabled) {
+                    startRinging(message, timeStr);
+                }
             }
 
             // Browser notification
@@ -722,34 +1171,20 @@
                 try {
                     new Notification('MyLifeCall', {
                         body: message,
-                        icon: '📱',
-                        tag: 'mylifecall-ring-' + docId,
-                        requireInteraction: data.type !== 'auto'
+                        tag: 'mylifecall-' + docId,
+                        requireInteraction: data.type !== 'auto',
+                        silent: false
                     });
-                } catch (e) {
-                    console.warn('Notification failed:', e);
-                }
+                } catch (e) {}
             }
 
-            // Mark as received in Firestore
+            // Mark as received
             db.collection('rings').doc(docId).update({ status: 'received' }).catch(() => {});
         }
 
-        function playShortBeep() {
-            if (!audioCtx) return;
-            const ctx = audioCtx;
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.value = 520;
-            gain.gain.value = volume * 0.4;
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            setTimeout(() => {
-                try { osc.stop(); } catch(e) {}
-            }, 200);
-        }
+        // ==========================================
+        // Log
+        // ==========================================
 
         function addLogEntry(icon, message, timeStr) {
             if (logEmpty) logEmpty.remove();
@@ -763,10 +1198,8 @@
                     <div class="log-time">${escapeHtml(timeStr)}</div>
                 </div>
             `;
-
             logList.insertBefore(li, logList.firstChild);
 
-            // Keep only last 50 entries
             while (logList.children.length > 50) {
                 logList.removeChild(logList.lastChild);
             }
@@ -816,25 +1249,21 @@
         }
 
         // ==========================================
-        // Keep-alive: prevent page from sleeping
+        // Keep-alive
         // ==========================================
 
-        // Periodically touch audio context to keep it alive
         setInterval(() => {
             if (audioCtx && audioCtx.state === 'suspended') {
                 audioCtx.resume().catch(() => {});
             }
         }, 30000);
 
-        // Wake lock API (keeps screen on) — optional, best-effort
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
                     await navigator.wakeLock.request('screen');
                 }
-            } catch (e) {
-                // Wake lock not supported or denied — that's fine
-            }
+            } catch(e) {}
         }
 
         document.addEventListener('visibilitychange', () => {
@@ -849,4 +1278,3 @@
 </body>
 
 </html>
-
