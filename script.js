@@ -4,7 +4,7 @@
 
 // ⚠️ IMPORTANT: Change this to YOUR unique ntfy topic!
 // This must match the topic you subscribed to in the ntfy app on your phone.
-const NTFY_TOPIC = 'mylifecall-ring-basitali-secret';
+const NTFY_TOPIC = 'mylifecall-ring-basit';
 
 // Firebase Configuration (from subagent setup)
 const firebaseConfig = {
