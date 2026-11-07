@@ -662,14 +662,18 @@
             // Set the "start time" to now — only alert on NEW rings after this point
             lastProcessedTimestamp = new Date();
 
+            // Listen for new pending rings.
+            // Using only orderBy (no compound where+orderBy) to avoid needing a composite index.
             unsubscribeRings = db.collection('rings')
-                .where('status', '==', 'pending')
                 .orderBy('timestamp', 'asc')
                 .onSnapshot(
                     (snapshot) => {
                         snapshot.docChanges().forEach((change) => {
                             if (change.type === 'added') {
                                 const data = change.doc.data();
+
+                                // Only process pending rings (filter in code, no composite index needed)
+                                if (data.status !== 'pending') return;
 
                                 // Skip rings that were created before we started listening
                                 if (data.timestamp && data.timestamp.toDate) {
@@ -845,3 +849,4 @@
 </body>
 
 </html>
+
