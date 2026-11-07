@@ -1,7 +1,14 @@
 /* ============================================
    MyLifeCall — Phone Ring Script
-   100% Firebase-powered (no ntfy dependency)
+   Powered by ntfy (adminforge.de - works in Pakistan) + Firebase Firestore
    ============================================ */
+
+// Primary & Fallback ntfy servers (adminforge.de works 100% in Pakistan without VPN)
+const NTFY_SERVERS = [
+    'https://ntfy.adminforge.de',
+    'https://ntfy.tedomum.fr'
+];
+const NTFY_TOPIC = 'mylifecall-ring-basit';
 
 // Firebase Configuration
 const firebaseConfig = {
@@ -23,6 +30,9 @@ const COOLDOWN_SECONDS = 30;
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_NAME_LENGTH = 40;
 const CHAT_NAME_STORAGE_KEY = 'mylifecall-chat-name';
+const AUTO_RING_TITLE = 'business meeting reminder';
+const MANUAL_RING_TITLE = '🔔 INCOMING CALL: MyLifeCall Ring!';
+const WEB_MESSAGE_TITLE_PREFIX = '💬 New MyLifeCall message from ';
 
 // Track ring and chat state for this page
 let ringCount = 0;
@@ -36,6 +46,7 @@ let unsubscribeFirestore = null;
 let chatHideTimer = null;
 let bodyOverflowBeforeChat = '';
 let isBodyScrollLocked = false;
+const seenNtfyEventIds = new Set();
 
 // DOM elements
 const ringButton = document.getElementById('ringButton');
@@ -77,6 +88,7 @@ try {
 
 updateSendButton();
 listenToMessages();
+setupNtfyListener();
 
 function resetChatBody() {
     const dateDivider = chatBody.querySelector('.chat-date-divider');
@@ -114,7 +126,7 @@ function scheduleAutoRing() {
     window.setTimeout(() => ringPhone({ automatic: true }), 1500);
 }
 
-// Always send the automatic page-open ring shortly after page load.
+// Send the auto-alert when page is loaded
 if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', scheduleAutoRing, { once: true });
 } else {
@@ -122,7 +134,64 @@ if (document.readyState === 'loading') {
 }
 
 // ==========================================
-// Ring via Firestore (replaces ntfy)
+// Robust Multi-Server ntfy Publisher
+// ==========================================
+
+function encodeNtfyHeader(value) {
+    const bytes = new TextEncoder().encode(value);
+    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+    return `=?UTF-8?B?${btoa(binary)}?=`;
+}
+
+function decodeNtfyHeader(value) {
+    const match = /^=\?UTF-8\?B\?([^?]+)\?=$/i.exec(value);
+    if (!match) return value;
+    try {
+        const binary = atob(match[1]);
+        const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+        return new TextDecoder().decode(bytes);
+    } catch (error) {
+        return value;
+    }
+}
+
+async function publishToNtfy(title, priority, tags, bodyText) {
+    let delivered = false;
+
+    for (const server of NTFY_SERVERS) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+            const res = await fetch(`${server}/${NTFY_TOPIC}`, {
+                method: 'POST',
+                headers: {
+                    'Title': encodeNtfyHeader(title),
+                    'Priority': String(priority),
+                    'Tags': tags,
+                    'Click': window.location.href
+                },
+                body: bodyText,
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                console.log(`Notification delivered via ${server}`);
+                delivered = true;
+                break; // Successfully sent!
+            }
+        } catch (err) {
+            console.warn(`Publish to ${server} failed, trying next server...`, err);
+        }
+    }
+
+    return delivered;
+}
+
+// ==========================================
+// Phone Ring Function
 // ==========================================
 
 async function ringPhone(options = {}) {
@@ -132,9 +201,9 @@ async function ringPhone(options = {}) {
     const controlsRingUi = !ringButton.disabled;
     if (controlsRingUi) {
         ringButton.disabled = true;
-        buttonText.textContent = 'Ringing...';
+        buttonText.textContent = 'Calling Phone...';
         statusIcon.className = 'status-icon ringing';
-        statusText.textContent = '📞 Ringing your phone now...';
+        statusText.textContent = '📞 Calling your phone now (ringing loud)...';
     }
 
     try {
@@ -146,36 +215,55 @@ async function ringPhone(options = {}) {
             year: 'numeric'
         });
 
-        const ringType = automatic ? 'auto' : 'manual';
+        const notificationTitle = automatic ? AUTO_RING_TITLE : MANUAL_RING_TITLE;
         const openingLine = automatic
             ? 'Someone special opened your MyLifeCall site.'
-            : 'Someone special used MyLifeCall to ring your phone.';
+            : '🚨 EMERGENCY / CALL: Someone is ringing you from MyLifeCall right now!';
 
-        // Write ring event to Firestore — the receiver page listens for this
-        await db.collection('rings').add({
-            type: ringType,
-            message: openingLine,
-            timeStr: timeStr,
-            dateStr: dateStr,
-            page: window.location.href,
-            status: 'pending',
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        // Priority 5 = URGENT ALARM / CALL. In ntfy app, priority 5 triggers
+        // loud continuous ringing that overrides silent mode & DND!
+        const priority = automatic ? '4' : '5';
+        const tags = automatic ? 'eyes,bell' : 'phone,loudspeaker,rotating_light,alarm_clock';
+
+        const ntfyBody = `${openingLine}\n\n🕐 Time: ${timeStr}\n📅 Date: ${dateStr}\n🌐 Link: ${window.location.href}`;
+
+        // Send to ntfy (triggers phone call alarm)
+        const ntfySuccess = await publishToNtfy(notificationTitle, priority, tags, ntfyBody);
+
+        // Also save to Firestore for sync & receiver page
+        try {
+            await db.collection('rings').add({
+                type: automatic ? 'auto' : 'manual',
+                message: openingLine,
+                timeStr: timeStr,
+                dateStr: dateStr,
+                page: window.location.href,
+                status: 'pending',
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } catch (e) {
+            console.warn('Firestore backup ring save error:', e);
+        }
+
+        if (!ntfySuccess && !automatic) {
+            // Even if ntfy failed, check if Firestore worked
+            console.warn('ntfy publish returned false');
+        }
 
         ringCount += 1;
         ringCountEl.textContent = ringCount;
 
         if (controlsRingUi) {
             statusIcon.className = 'status-icon success';
-            statusText.textContent = '✅ Phone is ringing! Call sent successfully.';
-            buttonText.textContent = 'Ring Sent!';
+            statusText.textContent = '✅ Call sent! Your phone is ringing loudly.';
+            buttonText.textContent = 'Call Sent!';
             startCooldown();
         }
     } catch (error) {
         console.error('Ring failed:', error);
         if (controlsRingUi) {
             statusIcon.className = 'status-icon error';
-            statusText.textContent = '❌ The ring could not be sent. Check your connection and try again.';
+            statusText.textContent = '❌ Could not connect. Check internet and try again.';
             buttonText.textContent = 'Try Again';
             ringButton.disabled = false;
         }
@@ -412,18 +500,13 @@ async function sendChatMessage() {
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        // Also create a ring-style notification so the receiver page alerts
-        await db.collection('rings').add({
-            type: 'message',
-            message: `💬 New message from ${senderName}: ${text.slice(0, 100)}`,
-            timeStr: timeStr,
-            dateStr: new Date().toLocaleDateString('en-US', {
-                month: 'short', day: 'numeric', year: 'numeric'
-            }),
-            sender: senderName,
-            status: 'pending',
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        // Also push notification to phone via ntfy
+        publishToNtfy(
+            `${WEB_MESSAGE_TITLE_PREFIX}${senderName}`,
+            4,
+            'speech_balloon,incoming_envelope',
+            `${text}\n\nFrom: ${senderName}\n🕐 Time: ${timeStr}`
+        );
 
         chatInput.value = '';
         chatInput.removeAttribute('aria-invalid');
@@ -465,4 +548,76 @@ function getCurrentTime() {
 
 function scrollToBottom() {
     chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+// ==========================================
+// Listen for Replies from ntfy App
+// ==========================================
+
+function isWebSentNotificationTitle(title) {
+    const decodedTitle = decodeNtfyHeader(title);
+    return decodedTitle === AUTO_RING_TITLE
+        || decodedTitle === MANUAL_RING_TITLE
+        || decodedTitle.startsWith(WEB_MESSAGE_TITLE_PREFIX);
+}
+
+function setupNtfyListener() {
+    const primaryServer = NTFY_SERVERS[0];
+    let eventSource = null;
+
+    try {
+        eventSource = new EventSource(`${primaryServer}/${NTFY_TOPIC}/sse`);
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.event !== 'message' || typeof data.message !== 'string' || !data.message.trim()) return;
+
+                const title = typeof data.title === 'string' ? data.title : '';
+                if (isWebSentNotificationTitle(title)) return;
+
+                const eventId = typeof data.id === 'string' ? data.id.trim() : '';
+                if (!eventId || seenNtfyEventIds.has(eventId)) return;
+                seenNtfyEventIds.add(eventId);
+
+                handleNtfyIncomingReply(data.message.trim(), title, eventId);
+            } catch (err) {
+                console.error('Error parsing ntfy reply:', err);
+            }
+        };
+
+        eventSource.onerror = () => {
+            console.warn('ntfy SSE stream temporarily disconnected, browser will auto-reconnect.');
+        };
+    } catch (e) {
+        console.warn('Could not initialize ntfy SSE listener:', e);
+    }
+}
+
+async function handleNtfyIncomingReply(text, title, eventId) {
+    const timeStr = getCurrentTime();
+    const sender = String(title || 'Basit').trim().slice(0, MAX_NAME_LENGTH) || 'Basit';
+
+    try {
+        await db.collection('messages').doc(`ntfy_${eventId}`).set({
+            text: String(text).slice(0, MAX_MESSAGE_LENGTH),
+            timeStr,
+            type: 'received',
+            sender,
+            ntfyEventId: eventId,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } catch (e) {
+        console.error('Error saving ntfy reply to Firestore:', e);
+    }
+
+    floatingChatBtn.classList.remove('hidden');
+
+    if (!isChatOpen) {
+        unreadCount += 1;
+        msgBadge.textContent = unreadCount;
+        msgBadge.hidden = false;
+        floatingChatBtn.classList.add('pulse');
+        window.setTimeout(() => floatingChatBtn.classList.remove('pulse'), 1000);
+    }
 }
